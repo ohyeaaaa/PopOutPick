@@ -1,0 +1,13 @@
+.env
+TELEGRAM.txt
+node_modules/
+dist/
+certs/
+logs/
+data/
+*.log
+npm-debug.log*
+
+# Raw design/source exports are not needed for the public website.
+Front end/
+PopOutPick_Website/For website/

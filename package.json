@@ -1,0 +1,20 @@
+{
+  "name": "popoutpick-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PopOutPick website backend for serving the public site from a self-hosted machine.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check admin.js && node --check script.js && node --check homepage-text.js && node --check cart-badge.js && node --check site-config.js && node --check tools/preflight.js && node --check tools/monitor.js && node --check tools/test-notification.js && node --check tools/test-file-notification.js && node --check tools/telegram-diagnose.js",
+    "preflight": "node tools/preflight.js",
+    "build:pages": "node tools/build-pages.js",
+    "monitor": "node tools/monitor.js",
+    "test-notification": "node tools/test-notification.js",
+    "test-file-notification": "node tools/test-file-notification.js",
+    "telegram-diagnose": "node tools/telegram-diagnose.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

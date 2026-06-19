@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PopOutPick - Official Master Configurator</title>
+    <!-- 3D Engine Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="site-header">
+        <a href="index.html" class="header-logo">PopOutPick</a>
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="configurator.html#shop">Shop</a>
+            <a href="configurator.html">Customize</a>
+            <a href="configurator.html#checkout-box">Cart</a>
+        </nav>
+        <div class="header-icons">
+            <a class="icon-btn" href="https://www.instagram.com/popoutpicks/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            </a>
+            <button class="icon-btn" aria-label="Telegram" type="button">
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+            <button class="icon-btn" aria-label="Search" type="button" style="margin-left: 8px;">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </button>
+            <button class="icon-btn" onclick="window.location.href='configurator.html#checkout-box';" aria-label="Cart" type="button">
+                <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                <span class="cart-badge" id="site-cart-count">0</span>
+            </button>
+            <button class="icon-btn menu-btn" aria-label="Menu" type="button">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Clickable Progress Bar -->
+    <div class="progress-container" id="timeline"></div>
+
+    <div class="configurator-ui">
+        
+        <!-- SHOP: STANDALONE PARTS -->
+        <div id="shop-view" class="view-step">
+            <h2>Shop Parts</h2>
+            <p class="subtitle">Click an icon to add replacement PopOutPick parts to your cart.</p>
+            <div class="shop-product-grid" id="shop-product-grid"></div>
+        </div>
+
+        <!-- STEP 1: TYPE SELECTION -->
+        <div id="step-1" class="view-step active">
+            <h2 data-text-key="step1.title">Choose Your Pick Type</h2>
+            <p class="subtitle" data-text-key="step1.subtitle">Are you a guitar player or a bass player?</p>
+            <div class="card-wrapper">
+                <div class="type-card" id="card-guitar" onclick="selectType('guitar')">
+                    <div class="icon-container"><img src="PopOutPick_Website/guitar-icon.png" alt="Guitar Icon" data-alt-key="step1.guitarAlt"></div>
+                    <h2 data-text-key="step1.guitarTitle">Guitar</h2><p data-text-key="step1.guitarRange">10MM - 6MM</p>
+                </div>
+                <div class="type-card" id="card-bass" onclick="selectType('bass')">
+                    <div class="icon-container"><img src="PopOutPick_Website/bass-icon.png" alt="Bass Icon" data-alt-key="step1.bassAlt"></div>
+                    <h2 data-text-key="step1.bassTitle">Bass</h2><p data-text-key="step1.bassRange">30MM - 6MM</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: PICKHOLDERS -->
+        <div id="step-3" class="view-step">
+            <div class="split-layout pickholder-layout">
+                <!-- Left: 3D Preview + color controls -->
+                <div class="holder-preview-column">
+                    <div id="holder-3d-viewport" style="width:600px; height:600px; background:#f2f0ed; border-radius:35px; overflow:hidden; position:relative; flex-shrink:0;">
+                        <div class="viewer-controls">
+                            <button class="ctrl-btn active" id="btn-rotate-holder" onclick="toggleHolderRotate()" data-text-key="symbols.rotate">🔄</button>
+                        </div>
+                    </div>
+                    <div id="step-3-colors-below-preview" class="holder-colors-under-preview"></div>
+                </div>
+                <!-- Right: Slot grid + thickness controls -->
+                <div class="pickholder-config-column">
+                    <h2 style="text-align:left; margin-top:0;" data-text-key="pickholders.title">Pickholders</h2>
+                    <p class="subtitle" style="text-align:left; margin-top:-10px;" data-text-key="pickholders.subtitle">Choose 4 pickholders — click each slot to configure its thickness and color</p>
+                    <div class="slots-grid" id="slots-grid-left"></div>
+                    <p id="slots-complete-msg" class="slots-complete-msg" data-text-key="pickholders.completeMessage">✓ All 4 pickholders configured</p>
+                    <div id="step-3-controls-right"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3D CONFIGURATION VIEWPORT (Used for Steps 2, 4, 5, 6, 7) -->
+        <div id="config-ui-container" style="display:none;">
+            <div class="split-layout">
+                <div id="main-3d-viewport">
+                    <div class="viewer-controls">
+                        <button class="ctrl-btn active" id="btn-rotate" onclick="toggleRotate()" data-text-key="symbols.rotate">🔄</button>
+                    </div>
+                </div>
+                <div class="controls-column" id="step-controls-injected">
+                    <!-- Step-specific controls will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 8: FINAL ASSEMBLY & SUMMARY -->
+        <div id="step-8" class="view-step">
+            <div style="max-width:850px; margin:0 auto;">
+                <h2 data-text-key="finalReview.title">Your Custom PopOutPick</h2>
+                <p class="subtitle" data-text-key="finalReview.subtitle">Review your design before finishing</p>
+
+                <div class="preview-box-large">
+                    <div id="assembly-status" data-text-key="finalReview.assemblyStatus">Assembling your PopOutPick...</div>
+                    <div id="final-assembly-viewport"></div>
+                </div>
+
+                <div class="breakdown-box" id="master-breakdown-list">
+                    <!-- Dynamic summary cards will be injected here -->
+                </div>
+
+                <div id="final-review-cart-prompt" class="final-review-cart-prompt" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <!-- CART / CHECKOUT VIEW -->
+        <div id="checkout-view" class="view-step">
+            <div class="checkout-box" id="checkout-box">
+                <!-- Static MVP checkout will be injected here -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- NAVIGATION FOOTER -->
+    <div class="nav-footer">
+        <button class="btn-nav" id="btn-prev" onclick="changeStep(-1)" data-text-key="nav.previous">← Previous</button>
+        <div id="step-indicator" data-text-key="timeline.stepIndicator">STEP 1 OF 8</div>
+        <div id="cart-action-status" class="cart-action-status" aria-live="polite"></div>
+        <button class="btn-nav btn-next" id="btn-next" onclick="changeStep(1)" data-text-key="nav.next">Next →</button>
+    </div>
+
+    <script src="site-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PopOutPick Admin</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-body">
+    <header class="site-header admin-header">
+        <a href="index.html" class="header-logo">PopOutPick</a>
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="configurator.html#checkout-box">Checkout</a>
+            <a href="admin.html">Admin</a>
+        </nav>
+        <button class="admin-ghost-button" id="admin-signout" type="button">Sign out</button>
+    </header>
+
+    <main class="admin-shell">
+        <section class="admin-login-panel" id="admin-login-panel">
+            <h1>Admin Settings</h1>
+            <p>Sign in with a Supabase Auth user that is listed in <code>public.admin_users</code>.</p>
+            <form class="admin-form" id="admin-login-form">
+                <label>Email
+                    <input id="admin-email" type="email" autocomplete="email" required>
+                </label>
+                <label>Password
+                    <input id="admin-password" type="password" autocomplete="current-password" required>
+                </label>
+                <button class="admin-primary-button" type="submit">Sign in</button>
+            </form>
+            <div class="admin-status" id="admin-login-status" role="status"></div>
+        </section>
+
+        <section class="admin-dashboard is-hidden" id="admin-dashboard">
+            <div class="admin-dashboard-title">
+                <div>
+                    <h1>Site Admin</h1>
+                    <p id="admin-session-label"></p>
+                </div>
+                <div class="admin-title-actions">
+                    <button class="admin-ghost-button" id="admin-export-json" type="button">Export JSON</button>
+                    <button class="admin-ghost-button" id="admin-export-csv" type="button">Export Orders CSV</button>
+                    <button class="admin-primary-button" id="admin-refresh" type="button">Refresh</button>
+                </div>
+            </div>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Orders</h2>
+                        <p>Review customer orders, payment details, uploaded files, and fulfilment status.</p>
+                    </div>
+                </div>
+                <div class="admin-order-tools">
+                    <label>Filter
+                        <input id="order-search" type="search" placeholder="Order ID, customer, email, telegram">
+                    </label>
+                    <label>Status
+                        <select id="order-status-filter">
+                            <option value="">All statuses</option>
+                            <option value="new">New</option>
+                            <option value="paid">Paid</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="ready">Ready</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Order</th><th>Customer</th><th>Fulfilment</th><th>Total</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody id="orders-table-body"></tbody>
+                    </table>
+                </div>
+                <div class="admin-order-detail" id="order-detail"></div>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Deployment Checks</h2>
+                        <p>Run backend checks before exposing the site through your router or tunnel.</p>
+                    </div>
+                    <div class="admin-title-actions">
+                        <button class="admin-ghost-button" id="admin-test-notification" type="button">Test Notification</button>
+                        <button class="admin-ghost-button" id="admin-test-file-notification" type="button">Test File Bot</button>
+                        <button class="admin-ghost-button" id="admin-run-preflight" type="button">Open Preflight</button>
+                    </div>
+                </div>
+                <div class="admin-security-grid">
+                    <div><strong>HTTPS</strong><span>Use Cloudflare Tunnel, Caddy, nginx, or Node HTTPS before public launch.</span></div>
+                    <div><strong>Admin gate</strong><span>Backend Basic Auth plus Supabase admin allowlist protect the dashboard.</span></div>
+                    <div><strong>Logs</strong><span>Request logs are written locally when <code>LOG_TO_FILE=true</code>.</span></div>
+                </div>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Homepage Text</h2>
+                        <p>Change the main front page copy. Visitors see saved changes after the homepage loads.</p>
+                    </div>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table admin-copy-table">
+                        <thead>
+                            <tr><th>Area</th><th>Text</th><th></th></tr>
+                        </thead>
+                        <tbody id="homepage-text-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Promo Codes</h2>
+                        <p>Public checkout validates one entered code at a time. Full promo code lists stay admin-only.</p>
+                    </div>
+                </div>
+                <form class="admin-grid-form" id="promo-form">
+                    <input type="hidden" id="promo-id">
+                    <label>Code
+                        <input id="promo-code" required maxlength="40" placeholder="POP10">
+                    </label>
+                    <label>Label
+                        <input id="promo-label" required maxlength="80" placeholder="10% off">
+                    </label>
+                    <label>Type
+                        <select id="promo-type">
+                            <option value="percent">Percent</option>
+                            <option value="fixed">Fixed amount</option>
+                        </select>
+                    </label>
+                    <label>Value
+                        <input id="promo-value" type="number" min="0" step="0.01" required>
+                    </label>
+                    <label>Starts
+                        <input id="promo-starts" type="datetime-local">
+                    </label>
+                    <label>Ends
+                        <input id="promo-ends" type="datetime-local">
+                    </label>
+                    <label class="admin-check">
+                        <input id="promo-active" type="checkbox" checked>
+                        Active
+                    </label>
+                    <div class="admin-form-actions">
+                        <button class="admin-primary-button" type="submit">Save Promo</button>
+                        <button class="admin-ghost-button" id="promo-reset" type="button">Clear</button>
+                    </div>
+                </form>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Code</th><th>Label</th><th>Discount</th><th>Active</th><th>Window</th><th></th></tr>
+                        </thead>
+                        <tbody id="promo-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Available Time Slots</h2>
+                        <p>Set exact slots per location and day of week. Checkout uses these rows when available.</p>
+                    </div>
+                </div>
+                <form class="admin-grid-form" id="slot-form">
+                    <input type="hidden" id="slot-id">
+                    <label>Location
+                        <select id="slot-location"></select>
+                    </label>
+                    <label>Day
+                        <select id="slot-day"></select>
+                    </label>
+                    <label>Time
+                        <input id="slot-time" required placeholder="7:00 PM">
+                    </label>
+                    <label>Sort
+                        <input id="slot-sort" type="number" step="1" value="1900">
+                    </label>
+                    <label class="admin-check">
+                        <input id="slot-active" type="checkbox" checked>
+                        Active
+                    </label>
+                    <div class="admin-form-actions">
+                        <button class="admin-primary-button" type="submit">Save Slot</button>
+                        <button class="admin-ghost-button" id="slot-reset" type="button">Clear</button>
+                    </div>
+                </form>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Location</th><th>Day</th><th>Time</th><th>Active</th><th></th></tr>
+                        </thead>
+                        <tbody id="slot-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-header">
+                    <div>
+                        <h2>Blocked Dates</h2>
+                        <p>Block a date for all locations, or only one location.</p>
+                    </div>
+                </div>
+                <form class="admin-grid-form" id="blocked-form">
+                    <input type="hidden" id="blocked-id">
+                    <label>Location
+                        <select id="blocked-location"></select>
+                    </label>
+                    <label>Date
+                        <input id="blocked-date" type="date" required>
+                    </label>
+                    <label>Reason
+                        <input id="blocked-reason" maxlength="120" placeholder="Fully booked">
+                    </label>
+                    <label class="admin-check">
+                        <input id="blocked-active" type="checkbox" checked>
+                        Active
+                    </label>
+                    <div class="admin-form-actions">
+                        <button class="admin-primary-button" type="submit">Save Block</button>
+                        <button class="admin-ghost-button" id="blocked-reset" type="button">Clear</button>
+                    </div>
+                </form>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Location</th><th>Date</th><th>Reason</th><th>Active</th><th></th></tr>
+                        </thead>
+                        <tbody id="blocked-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="admin-status" id="admin-status" role="status"></div>
+        </section>
+    </main>
+
+    <script src="site-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

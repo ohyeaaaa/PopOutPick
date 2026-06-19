@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PopoutPicks Setup - Final Build + Socials</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* --- Core Palette Variables: Dark Studio + Translucency --- */
+        :root {
+            --brand-fire: #e25822;      
+            --brand-fire-dark: #b31b00; 
+            
+            --bg-base: #110d0b;         
+            --bg-surface: #1c1613;      
+            
+            --bg-surface-glass: rgba(28, 22, 19, 0.65); 
+            --bg-dropzone-glass: rgba(28, 22, 19, 0.4);
+            
+            --border-subtle: rgba(255, 255, 255, 0.08); 
+            --border-highlight: rgba(255, 255, 255, 0.15);
+            
+            --text-primary: #f5f2f0;    
+            --text-secondary: #9e9188;  
+            
+            --hover-fire-bg: rgba(226, 88, 34, 0.08); 
+        }
+
+        /* --- Global Resets & Typography --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: var(--text-primary);
+            background-color: var(--bg-base); 
+            
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 30px 30px;
+            background-position: center top;
+            background-attachment: fixed; 
+            
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* --- Technical / Monospace Typography --- */
+        .mono-accent {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            color: var(--brand-fire);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .mono-muted {
+            color: var(--text-secondary);
+        }
+
+        /* --- SITE HEADER --- */
+        .site-header {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            height: 70px;
+            background-color: var(--bg-surface-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            z-index: 1000;
+        }
+
+        .header-logo {
+            font-weight: 900;
+            font-size: 24px;
+            color: var(--text-primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+        }
+
+        .header-nav {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 32px;
+        }
+
+        .header-nav a {
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 700;
+            font-size: 15px;
+            transition: color 0.2s ease, text-shadow 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-nav a:hover {
+            color: var(--brand-fire);
+            text-shadow: 0 0 10px rgba(226, 88, 34, 0.4);
+        }
+
+        .header-icons {
+            position: absolute;
+            top: 50%;
+            right: 40px;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            color: var(--text-primary);
+            transition: color 0.2s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .icon-btn:hover {
+            color: var(--brand-fire);
+            transform: scale(1.1);
+        }
+
+        .icon-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .cart-badge {
+            position: absolute;
+            top: -4px;
+            right: -6px;
+            background-color: var(--brand-fire);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(226, 88, 34, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .header-nav {
+                display: none;
+            }
+            .site-header {
+                padding: 0 20px;
+            }
+        }
+
+        /* --- THE FIRE ANIMATION --- */
+        @keyframes firePulse {
+            0% { background-position: 50% 0%; }
+            100% { background-position: 50% 100%; }
+        }
+
+        /* --- TOP FULL-WIDTH FIRE BANNER --- */
+        .glb-grid-wrapper {
+            width: 100%;
+            position: relative;
+            padding: 300px 20px; 
+            margin-bottom: 60px;
+            background: linear-gradient(180deg, #1a0000 0%, #5c0000 25%, #b31b00 50%, #e25822 75%, #ff9a00 100%);
+            background-size: 400% 400%;
+            animation: firePulse 8s ease-in-out infinite alternate;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
+            overflow: hidden; 
+            display: flex;
+            justify-content: center;
+        }
+
+        .glb-grid-inner {
+            width: 100%;
+            max-width: 1000px; 
+            position: relative;
+        }
+
+        .middle-logo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5; 
+            max-width: 450px; 
+            width: 100%;
+            height: auto;
+            pointer-events: none; 
+            filter: drop-shadow(0 10px 30px rgba(255, 150, 0, 0.6)); 
+        }
+
+        .glb-grid {
+            position: relative;
+            width: min(100%, 1180px);
+            height: 680px;
+            margin: 0 auto;
+            perspective: 1600px;
+            transform-style: preserve-3d;
+        }
+
+        /* --- 3D DROPZONES --- */
+        .glb-dropzone {
+            background-color: var(--bg-dropzone-glass);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 24%;
+            min-width: 180px;
+            aspect-ratio: 16 / 9;
+            cursor: pointer;
+            text-align: center;
+            padding: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate3d(-50%, -50%, 0px) rotateZ(0deg);
+
+            z-index: 1;
+            transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, outline 0.2s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        }
+
+        .glb-dropzone:focus-visible {
+            outline: 3px solid var(--brand-fire);
+            outline-offset: 4px;
+        }
+
+        .glb-dropzone:hover, .glb-dropzone:focus {
+            border-color: var(--brand-fire);
+            background-color: var(--hover-fire-bg);
+            box-shadow: 0 15px 35px rgba(226, 88, 34, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 100 !important;
+        }
+
+        .glb-dropzone.model-contrast-white {
+            background: rgba(255, 154, 0, 0.14);
+            border-color: rgba(255, 154, 0, 0.82);
+            box-shadow: 0 15px 35px rgba(226, 88, 34, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        .glb-dropzone.model-contrast-white span {
+            color: var(--text-primary);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+        }
+
+        .glb-dropzone span {
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            bottom: 8px;
+            z-index: 2;
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 800;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            margin-top: 8px;
+            pointer-events: none;
+            transition: color 0.3s ease;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+        }
+        
+        .glb-dropzone:hover span {
+            color: var(--text-primary);
+        }
+
+        .glb-viewer {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .glb-viewer canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .glb-icon {
+            font-size: 28px;
+            color: var(--text-secondary);
+            opacity: 0.3;
+            pointer-events: none;
+            transition: color 0.3s ease, opacity 0.3s ease;
+            display: none;
+        }
+        
+        .glb-dropzone:hover .glb-icon {
+            color: var(--brand-fire);
+            opacity: 0.8;
+        }
+
+        /* --- BENTO GRID LAYOUT --- */
+        .container {
+            width: 100%;
+            max-width: 1100px; 
+            margin: 0 auto; 
+            padding: 0 20px 80px 20px; 
+        }
+
+        .bento-layout {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 25px; 
+            align-items: start; 
+        }
+
+        .col-span-12 { grid-column: span 12; }
+        .col-span-8 { grid-column: span 8; }
+        .col-span-7 { grid-column: span 7; }
+        .col-span-6 { grid-column: span 6; }
+        .col-span-5 { grid-column: span 5; }
+        .col-span-4 { grid-column: span 4; }
+
+        .stagger-down { margin-top: 60px; }
+        .overlap-up { margin-top: -30px; z-index: 10; position: relative; }
+
+        @media (max-width: 900px) {
+            .bento-layout > div {
+                grid-column: span 12 !important;
+                margin-top: 0 !important;
+            }
+        }
+
+        /* --- SCROLL REVEAL ANIMATION CLASSES --- */
+        .reveal-on-scroll {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .reveal-on-scroll.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- Cards --- */
+        .card {
+            background-color: var(--bg-surface-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 36px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05); 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid var(--border-subtle);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            position: relative;
+        }
+        
+        .card.accent-left {
+            border-left: 3px solid var(--brand-fire);
+        }
+
+        .card:hover {
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 20px rgba(226, 88, 34, 0.05);
+            border-color: var(--border-highlight);
+            z-index: 20; 
+        }
+
+        .card-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .card-header h3 {
+            font-size: 20px; 
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-header p, .card-content-text {
+            font-size: 15px; 
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .card-content-text {
+            text-align: center;
+        }
+
+        /* --- HUD Image/GIF Placeholder Containers --- */
+        .hud-container {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            min-height: 250px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+            padding: 20px;
+            margin-top: 16px;
+            margin-bottom: 16px;
+        }
+
+        .hud-container::before, .hud-container::after, .hud-corners-alt::before, .hud-corners-alt::after {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-color: var(--brand-fire);
+            border-style: solid;
+            pointer-events: none;
+            opacity: 0.6;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease, opacity 0.3s ease;
+        }
+        
+        .hud-container::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .hud-container::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+        
+        .hud-corners-alt {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+        }
+        .hud-corners-alt::before { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .hud-corners-alt::after { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+
+        .card:hover .hud-container::before { transform: translate(-4px, -4px); border-color: #ff9a00; opacity: 1;}
+        .card:hover .hud-container::after { transform: translate(4px, 4px); border-color: #ff9a00; opacity: 1;}
+        .card:hover .hud-corners-alt::before { transform: translate(4px, -4px); border-color: #ff9a00; opacity: 1;}
+        .card:hover .hud-corners-alt::after { transform: translate(-4px, 4px); border-color: #ff9a00; opacity: 1;}
+
+        /* --- Terminal Style Input --- */
+        .input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .input-prefix {
+            position: absolute;
+            left: 20px;
+            color: var(--brand-fire);
+            font-family: monospace;
+            font-size: 16px;
+            font-weight: bold;
+            pointer-events: none; 
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        .input-group:focus-within .input-prefix {
+            color: #ffffff;
+            text-shadow: 0 0 8px var(--brand-fire);
+            animation: blink 1s step-end infinite;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 16px 20px 16px 45px; 
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            font-family: 'SFMono-Regular', Consolas, monospace; 
+            font-size: 14px;
+            color: var(--text-primary);
+            background-color: rgba(0, 0, 0, 0.4); 
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--brand-fire);
+            background-color: rgba(0, 0, 0, 0.6);
+            box-shadow: 0 0 0 3px rgba(226, 88, 34, 0.1), inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* --- SCROLL ANIMATION CANVAS --- */
+        #scroll-canvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16 / 9;
+            background-color: rgba(0, 0, 0, 0.4); 
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            display: block;
+            margin-top: 16px;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+            transition: border-color 0.3s ease;
+        }
+        
+        .card:hover #scroll-canvas {
+            border-color: var(--border-highlight);
+        }
+
+        #spinning-animation-card {
+            min-height: 450px; 
+        }
+
+        /* --- INTERACTIVE FIRE BUTTON --- */
+        .build-button-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 40px;
+            padding: 20px;
+            background: var(--bg-surface-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            position: relative;
+            overflow: hidden; 
+            z-index: 1;
+            transition: box-shadow 0.4s ease, border-color 0.4s ease;
+            cursor: pointer; 
+        }
+
+        .build-button-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(180deg, #1a0000 0%, #5c0000 25%, #b31b00 50%, #e25822 75%, #ff9a00 100%);
+            background-size: 400% 400%;
+            animation: firePulse 4s ease-in-out infinite alternate; 
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .build-button-container:hover::before {
+            opacity: 1;
+        }
+        
+        .build-button-container:hover {
+            box-shadow: 0 15px 40px rgba(226, 88, 34, 0.6), 0 0 30px rgba(226, 88, 34, 0.2); 
+            border-color: transparent;
+        }
+
+        .build-button {
+            background: transparent;
+            border: none;
+            font-family: 'Impact', 'Helvetica Neue', sans-serif;
+            font-size: 48px; 
+            font-weight: 900;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: color 0.4s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), text-shadow 0.4s ease;
+        }
+
+        .build-button-container:hover .build-button {
+            color: #ffffff; 
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 154, 0, 0.4); 
+            transform: scale(1.05) skewX(-5deg); 
+        }
+        
+        .build-button:active {
+            transform: scale(0.98) !important;
+        }
+
+        .product-wordmark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            width: min(84vw, 560px);
+            height: clamp(190px, 28vw, 270px);
+            pointer-events: none;
+            display: grid;
+            place-items: center;
+            filter: drop-shadow(0 24px 55px rgba(0, 0, 0, 0.55));
+        }
+
+        .hero-fire-gif {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+            width: min(10000%, 1400px);
+            height: auto;
+            z-index: 1;
+            opacity: 0.95;
+            filter: saturate(1.25) drop-shadow(0 0 34px rgba(226, 88, 34, 0.65));
+        }
+
+        .hero-logo-img {
+            position: relative;
+            z-index: 2;
+            width: min(92%, 470px);
+            height: auto;
+            margin-bottom: 28px;
+            filter: drop-shadow(0 8px 14px rgba(255, 154, 0, 0.45)) drop-shadow(0 2px 2px rgba(255, 255, 255, 0.2));
+        }
+
+        .design-icon-row {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .design-icon-card {
+            width: 150px;
+            min-height: 150px;
+            padding: 18px;
+            border-radius: 18px;
+            background: #ffffff;
+            display: grid;
+            align-items: center;
+            justify-items: center;
+            box-shadow: 0 0 26px rgba(226, 88, 34, 0.22), 0 12px 32px rgba(0, 0, 0, 0.35);
+        }
+
+        .design-icon-card img {
+            width: 100%;
+            max-height: 95px;
+            object-fit: contain;
+        }
+
+        .design-icon-card span {
+            color: #110d0b;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .design-part-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .design-part-pill {
+            border: 1px solid rgba(226, 88, 34, 0.32);
+            border-radius: 999px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            background: rgba(226, 88, 34, 0.08);
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .individual-parts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 18px;
+        }
+
+        .part-preview-card {
+            position: relative;
+            min-height: 240px;
+            border: 1px solid rgba(226, 88, 34, 0.26);
+            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.34);
+            overflow: hidden;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 32px rgba(0, 0, 0, 0.34), 0 0 20px rgba(226, 88, 34, 0.10);
+        }
+
+        .part-preview-viewer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .part-preview-viewer canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .part-preview-card span {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 10px;
+            z-index: 2;
+            color: var(--text-primary);
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-align: center;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="site-header">
+        <a href="index.html" class="header-logo" data-home-text="site_brand_name">PopOutPick</a>
+
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="configurator.html#shop">Shop</a>
+            <a href="configurator.html">Customize</a>
+            <a href="configurator.html#checkout-box">Cart</a>
+        </nav>
+        
+        <div class="header-icons">
+            <a class="icon-btn" href="https://www.instagram.com/popoutpicks/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            </a>
+            
+            <button class="icon-btn" aria-label="Telegram">
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+            
+            <button class="icon-btn" aria-label="Search" style="margin-left: 8px;">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </button>
+            
+            <button class="icon-btn" aria-label="Cart" onclick="window.location.href='configurator.html#checkout-box';">
+                <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                <span class="cart-badge">0</span>
+            </button>
+            
+            <button class="icon-btn" aria-label="Menu">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="glb-grid-wrapper">
+        <div class="glb-grid-inner">
+            <div class="product-wordmark" aria-label="PopOutPick product design">
+                <img class="hero-fire-gif" src="Picture/flame gif.gif" alt="" aria-hidden="true">
+                <img class="hero-logo-img" src="Picture/popoutpick logo.png" alt="PopOutPick">
+            </div>
+
+            <div class="glb-grid">
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Body" data-glb="GLB/(Guitar) body.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Guitar Body</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Pick Holder 10mm" data-glb="GLB/(Guitar) Pick Holder 10mm.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Pick Holder 10mm</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Pick Holder 8mm" data-glb="GLB/(Guitar) Pick Holder 8mm.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Pick Holder 8mm</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Pick Holder 7mm" data-glb="GLB/(Guitar) Pick Holder 7mm.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Pick Holder 7mm</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Pick Holder 6mm" data-glb="GLB/(Guitar) Pick Holder 6mm.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Pick Holder 6mm</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Slider" data-glb="GLB/Slider for both.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Slider</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Pick Holder Module" data-glb="GLB/(Guitar) Pick Holder Module.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Pick Holder Module</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Top Plate" data-glb="GLB/(Guitar) Top Plate.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Top Plate</span></div>
+                <div class="glb-dropzone" tabindex="0" aria-label="Guitar Base Plate" data-glb="GLB/(Guitar) Base Plate.glb"><div class="glb-viewer"></div><div class="glb-icon">📦</div><span>Base Plate</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container bento-layout">
+        
+        <div class="card accent-left col-span-5 reveal-on-scroll">
+            <div class="card-header">
+                <span class="mono-accent">// ASSET_VIEWER</span>
+                <h3 data-home-text="hero_card_title">PopOutPick</h3>
+                <p data-home-text="hero_card_tagline">A better way to store your picks</p>
+            </div>
+            <div class="hud-container">
+                <div class="hud-corners-alt"></div>
+                <img src="Picture/popoutpick logo with flames black.png" alt="PopOutPick logo with flames" style="width:100%; max-height:260px; object-fit:cover; border-radius:10px; box-shadow:0 0 30px rgba(226, 88, 34, 0.28);">
+            </div>
+            <div class="input-group">
+                <span class="input-prefix">&gt;</span>
+                <p style="color: #ffffff; font-size: 1.05rem; line-height: 1.65;" data-home-text="hero_intro" data-home-text-multiline="true">Welcome to the PopOutPick configurator! Here you can explore our modular guitar pick holder system, designed for musicians who crave customization and style. Each component is 3D printable and crafted to fit together seamlessly, allowing you to create a personalized pick holder that suits your playing style and aesthetic preferences.
+</p>
+            </div>
+        </div>
+
+        <div class="card col-span-7 stagger-down reveal-on-scroll" style="transition-delay: 0.1s;">
+            <span class="mono-accent">// RENDER_PREVIEW</span>
+            <div class="hud-container" style="min-height: 450px;">
+                <div class="hud-corners-alt"></div>
+                <video src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline style="width:100%; height:100%; min-height:410px; object-fit:cover; border-radius:8px; display:block; transform:rotate(-90deg) scale(1.35); transform-origin:center; box-shadow:0 0 30px rgba(226, 88, 34, 0.22);"></video>
+            </div>
+        </div>
+
+        <div class="card accent-left col-span-7 stagger-down reveal-on-scroll" id="scroll-animation-card" style="transition-delay: 0.1s;">
+            <div class="card-header" style="text-align: left; padding-left: 10px;">
+                <span class="mono-accent">// KINEMATIC_TEST</span>
+                <h3 data-home-text="scroll_card_title">Scroll Animation</h3>
+                <p data-home-text="scroll_card_subtitle">Scroll to rotate the PopOutPick</p>
+            </div>
+            <div class="hud-container" style="padding: 0; min-height: auto; border: none; background: transparent;">
+                <div class="hud-corners-alt"></div>
+                <div id="scroll-glb-viewer" style="width:100%; aspect-ratio:16/9; min-height:420px; border-radius:8px; overflow:hidden; position:relative; background:rgba(0,0,0,0.35);"></div>
+            </div>
+        </div>
+
+        <div class="card col-span-5 reveal-on-scroll" style="transition-delay: 0.2s; min-height: 420px; padding: 44px;">
+            <span class="mono-accent">// SYSTEM_SPECS</span>
+            <h3 data-home-text="product_details_title">PRODUCT DETAILS</h3>
+            <p class="card-content-text" style="margin-top: 16px; text-align: left; color: #ffffff; font-size: 1.05rem; line-height: 1.65;" data-home-text="product_details_body" data-home-text-multiline="true">
+                4 Pick Holders, different sizes, whatever design you want. This product will help you remember which pick is which, and make it easy to carry them around. The modular design allows you to customize your pick holder with different colors, patterns, and even add-ons like keychains or clips. Each component is designed to fit together seamlessly, creating a compact and stylish solution for storing your guitar picks. Whether you're a beginner or a seasoned guitarist, the PopOutPick system offers a fun and functional way to keep your picks organized and easily accessible.
+                <br><br>
+            </p>
+        </div>
+
+        <div class="card col-span-12 reveal-on-scroll" id="spinning-animation-card">
+            <span class="mono-accent">// 3D_VIEWPORT</span>
+            <div class="individual-parts-grid">
+                <div class="part-preview-card" data-glb="GLB/(Guitar) body.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Body</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Pick Holder Module.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Pick Holder Module</span></div>
+                <div class="part-preview-card" data-glb="GLB/Slider for both.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Slider</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Top Plate.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Top Plate</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Base Plate.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Base Plate</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Pick Holder 10mm.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Pick Holder 10mm</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Pick Holder 8mm.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Pick Holder 8mm</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Pick Holder 7mm.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Pick Holder 7mm</span></div>
+                <div class="part-preview-card" data-glb="GLB/(Guitar) Pick Holder 6mm.glb" data-color="0xffffff"><div class="part-preview-viewer"></div><span>Pick Holder 6mm</span></div>
+            </div>
+        </div>
+
+        <div class="build-button-container col-span-12 reveal-on-scroll" tabindex="0" role="button" aria-label="Build It Now" style="transition-delay: 0.1s;" onclick="window.location.href='configurator.html';">
+            <button class="build-button" tabindex="-1" data-home-text="build_button_label">BUILD IT NOW</button>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================
+           1. SMOOTH BOBBING SQUARES
+           ========================================== */
+        const gridWrapper = document.querySelector('.glb-grid-wrapper');
+        let isGridInView = true;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                isGridInView = entry.isIntersecting;
+            });
+        }, { threshold: 0 }); 
+
+        observer.observe(gridWrapper);
+
+        const glbLoaders = [];
+        const glbColorPalette = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae];
+        const glbCardColors = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae, 0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5];
+        const glbAssetVersion = '20260616-hero-glb-fix';
+        const glbCardView = [
+            { zoom: 1.35, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
+            { zoom: 1.25, targetSize: 5.2, rotation: [1.35, 0.1, 0] },
+            { zoom: 1.25, targetSize: 5.2, rotation: [1.35, 0.1, 0] },
+            { zoom: 1.55, targetSize: 3.5, rotation: [0.9, -0.2, 0] },
+            { zoom: 1.55, targetSize: 3.5, rotation: [0.9, -0.2, 0] },
+            { zoom: 1.5, targetSize: 3.8, rotation: [1.25, 0, 0] },
+            { zoom: 1.5, targetSize: 3.2, rotation: [0.65, 0.35, 0] },
+            { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] },
+            { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] }
+        ];
+
+        function getVisibleGlbColor(color) {
+            return glbColorPalette.includes(color) ? color : 0x90a4ae;
+        }
+
+        function getGlbDisplayColor(index) {
+            return glbCardColors[index % glbCardColors.length];
+        }
+
+        function getRandomGlbColor() {
+            return getVisibleGlbColor(glbColorPalette[Math.floor(Math.random() * glbColorPalette.length)]);
+        }
+
+        function getShuffledGlbColors() {
+            const colors = [...glbColorPalette];
+            for (let i = colors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [colors[i], colors[j]] = [colors[j], colors[i]];
+            }
+            return colors;
+        }
+
+        function fitModelToView(model, camera, zoom = 2.1, targetSize = 2.4) {
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const scale = targetSize / maxDim;
+
+            model.scale.setScalar(scale);
+            model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+            camera.position.set(targetSize * 0.18, targetSize * 0.12, targetSize * zoom);
+            camera.near = 0.01;
+            camera.far = 100;
+            camera.lookAt(0, 0, 0);
+            camera.updateProjectionMatrix();
+        }
+
+        function initGlbSlot(box, index) {
+            const viewer = box.querySelector('.glb-viewer');
+            const file = box.dataset.glb;
+            const fileUrl = `${file}?v=${glbAssetVersion}`;
+            if (!viewer || !file || !window.THREE) return null;
+
+            const width = viewer.clientWidth || box.clientWidth || 280;
+            const height = viewer.clientHeight || box.clientHeight || 160;
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setClearColor(0x000000, 0);
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio || 1);
+            renderer.domElement.style.background = 'transparent';
+            viewer.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.45));
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.15);
+            keyLight.position.set(4, 6, 7);
+            scene.add(keyLight);
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            fillLight.position.set(-5, 3, 4);
+            scene.add(fillLight);
+
+            const group = new THREE.Group();
+            const materials = [];
+            scene.add(group);
+
+            function setColor(nextColor) {
+                const visibleColor = getVisibleGlbColor(nextColor);
+                box.classList.toggle('model-contrast-white', visibleColor === 0x1a1a1a || visibleColor === 0xffffff);
+                box.classList.toggle('model-is-loaded', materials.length > 0);
+                materials.forEach((material) => {
+                    material.color.setHex(visibleColor);
+                    if (material.emissive) material.emissive.setHex(visibleColor);
+                    material.needsUpdate = true;
+                });
+            }
+
+            function setRandomColor() {
+                setColor(getRandomGlbColor());
+            }
+
+            const loader = new THREE.GLTFLoader();
+            loader.load(fileUrl, (gltf) => {
+                const model = gltf.scene;
+                const initialColor = getGlbDisplayColor(index);
+                box.classList.toggle('model-contrast-white', initialColor === 0x1a1a1a || initialColor === 0xffffff);
+                box.classList.add('model-is-loaded');
+                model.traverse((child) => {
+                    if (!child.isMesh) return;
+                    const material = new THREE.MeshStandardMaterial({
+                        color: initialColor,
+                        emissive: initialColor,
+                        emissiveIntensity: 0.18,
+                        metalness: 0.04,
+                        roughness: 0.62,
+                        side: THREE.DoubleSide
+                    });
+                    child.material = material;
+                    materials.push(material);
+
+                    const edges = new THREE.LineSegments(
+                        new THREE.EdgesGeometry(child.geometry, 22),
+                        new THREE.LineBasicMaterial({ color: 0x140804, transparent: true, opacity: 0.55 })
+                    );
+                    child.add(edges);
+                });
+                group.add(model);
+                const view = glbCardView[index] || { zoom: 1.65, targetSize: 3.2, rotation: [0.55, 0.25, 0] };
+                model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
+                fitModelToView(model, camera, view.zoom, view.targetSize);
+                box.classList.add('is-loaded');
+            }, undefined, (error) => {
+                console.error(`Failed to load ${file}`, error);
+                box.classList.remove('model-contrast-white', 'model-is-loaded');
+                box.querySelector('.glb-icon').style.display = 'block';
+            });
+
+            function resize() {
+                const nextWidth = viewer.clientWidth || box.clientWidth || width;
+                const nextHeight = viewer.clientHeight || box.clientHeight || height;
+                renderer.setSize(nextWidth, nextHeight);
+                camera.aspect = nextWidth / nextHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            return { scene, camera, renderer, group, resize, setRandomColor, setColor };
+        }
+
+        document.querySelectorAll('.glb-dropzone').forEach((box, index) => {
+            const glbSlot = initGlbSlot(box, index);
+            if (glbSlot) glbLoaders.push(glbSlot);
+
+            const homeX = ((index % 3) - 1) * 365;
+            const homeY = (Math.floor(index / 3) - 1) * 205;
+            const offsetMoveX = Math.random() * 1000;
+            const offsetMoveY = Math.random() * 1000;
+            const offsetMoveZ = Math.random() * 1000;
+            const offsetRotX = Math.random() * 1000;
+            const offsetRotY = Math.random() * 1000;
+            const offsetRotZ = Math.random() * 1000;
+
+            const freeMoveX = 275;
+            const freeMoveY = 150;
+            const freeMoveZ = 120;
+            const driftIntensityRot = 9;
+
+            function animateSquares(time) {
+                if (isGridInView) {
+                    if (box.matches(':hover') || box.matches(':focus-visible')) {
+                        box.style.transform = `translate3d(${homeX - 18}px, ${homeY - 18}px, 120px) scale(1.08) rotateX(0deg) rotateY(0deg) rotateZ(0deg)`;
+                    } else {
+                        const x = homeX + Math.sin(time * 0.00034 + offsetMoveX) * freeMoveX + Math.sin(time * 0.00081 + offsetMoveZ) * 42;
+                        const y = homeY + Math.cos(time * 0.00043 + offsetMoveY) * freeMoveY + Math.sin(time * 0.00097 + offsetMoveX) * 30;
+                        const z = Math.sin(time * 0.00062 + offsetMoveZ) * freeMoveZ;
+                        const rotX = Math.sin(time * 0.00045 + offsetRotX) * driftIntensityRot;
+                        const rotY = Math.sin(time * 0.00055 + offsetRotY) * driftIntensityRot;
+                        const rotZ = Math.sin(time * 0.00035 + offsetRotZ) * (driftIntensityRot * 0.45);
+
+                        box.style.zIndex = Math.round(z + 100);
+                        box.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
+                    }
+                }
+                if (glbSlot) {
+                    glbSlot.group.rotation.y += 0.008;
+                    glbSlot.group.scale.set(
+                        1 + Math.sin(time * 0.0012 + index) * 0.035,
+                        1 + Math.sin(time * 0.0012 + index) * 0.035,
+                        1 + Math.sin(time * 0.0012 + index) * 0.035
+                    );
+                    glbSlot.renderer.render(glbSlot.scene, glbSlot.camera);
+                }
+                requestAnimationFrame(animateSquares);
+            }
+            requestAnimationFrame(animateSquares);
+            
+            box.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    console.log(`Grid item ${index + 1} activated via keyboard!`);
+                }
+            });
+        });
+
+        window.addEventListener('resize', () => {
+            glbLoaders.forEach(slot => slot.resize());
+        });
+
+        function cycleAllProvidedColors() {
+            glbLoaders.forEach((slot, index) => {
+                slot.setColor(getGlbDisplayColor(index));
+            });
+        }
+
+        cycleAllProvidedColors();
+
+        /* ==========================================
+           2. SCROLL-CONTROLLED FULL PRODUCT GLB
+           ========================================== */
+        const scrollGlbViewer = document.getElementById('scroll-glb-viewer');
+        let scrollModelGroup = null;
+        let scrollRenderer = null;
+        let scrollCamera = null;
+        let scrollScene = null;
+        let scrollCameraRadius = 0;
+        let scrollCameraHeight = 0;
+
+        function initScrollGlbViewer() {
+            if (!scrollGlbViewer || !window.THREE) return;
+
+            const width = scrollGlbViewer.clientWidth || 900;
+            const height = scrollGlbViewer.clientHeight || 500;
+            scrollScene = new THREE.Scene();
+            scrollCamera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            scrollRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            scrollRenderer.setSize(width, height);
+            scrollRenderer.setPixelRatio(window.devicePixelRatio || 1);
+            scrollGlbViewer.appendChild(scrollRenderer.domElement);
+
+            scrollScene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
+            const scrollLight = new THREE.DirectionalLight(0xffffff, 0.85);
+            scrollLight.position.set(5, 6, 8);
+            scrollScene.add(scrollLight);
+
+            scrollModelGroup = new THREE.Group();
+            scrollScene.add(scrollModelGroup);
+
+            const loader = new THREE.GLTFLoader();
+            loader.load('GLB/full set.glb', (gltf) => {
+                const model = gltf.scene;
+                model.traverse((child) => {
+                    if (!child.isMesh) return;
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0xf5f2f0,
+                        metalness: 0.08,
+                        roughness: 0.52
+                    });
+                });
+                scrollModelGroup.add(model);
+                fitModelToView(model, scrollCamera);
+                scrollCameraRadius = Math.hypot(scrollCamera.position.x, scrollCamera.position.z);
+                scrollCameraHeight = scrollCamera.position.y;
+                scrollModelGroup.rotation.set(Math.PI / 248, 0, 0);
+                updateScrollGlbRotation();
+            });
+        }
+
+        function updateScrollGlbRotation() {
+            if (!scrollRenderer || !scrollScene || !scrollCamera || !scrollModelGroup) return;
+
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            const scrollProgress = maxScroll > 0 ? Math.max(0, Math.min(1, window.scrollY / maxScroll)) : 0;
+            const angle = scrollProgress * Math.PI * 2;
+            const radius = scrollCameraRadius || Math.hypot(scrollCamera.position.x, scrollCamera.position.z) || 120;
+
+            scrollCamera.position.set(Math.sin(angle) * radius, scrollCameraHeight, Math.cos(angle) * radius);
+            scrollCamera.lookAt(0, 0, 0);
+            scrollRenderer.render(scrollScene, scrollCamera);
+        }
+
+        function resizeScrollGlbViewer() {
+            if (!scrollGlbViewer || !scrollRenderer || !scrollCamera) return;
+            const width = scrollGlbViewer.clientWidth || 900;
+            const height = scrollGlbViewer.clientHeight || 500;
+            scrollRenderer.setSize(width, height);
+            scrollCamera.aspect = width / height;
+            scrollCamera.updateProjectionMatrix();
+            updateScrollGlbRotation();
+        }
+
+        initScrollGlbViewer();
+        window.addEventListener('scroll', () => requestAnimationFrame(updateScrollGlbRotation));
+        window.addEventListener('resize', resizeScrollGlbViewer);
+        updateScrollGlbRotation();
+
+        /* ==========================================
+           3. INDIVIDUAL CUSTOMIZE PART PREVIEWS
+           ========================================== */
+        const individualPartPreviews = [];
+
+        function initIndividualPartPreview(card) {
+            const viewer = card.querySelector('.part-preview-viewer');
+            const file = card.dataset.glb;
+            if (!viewer || !file || !window.THREE) return null;
+
+            const width = viewer.clientWidth || card.clientWidth || 320;
+            const height = viewer.clientHeight || card.clientHeight || 240;
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio || 1);
+            viewer.appendChild(renderer.domElement);
+
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
+            const light = new THREE.DirectionalLight(0xffffff, 0.85);
+            light.position.set(5, 6, 8);
+            scene.add(light);
+
+            const group = new THREE.Group();
+            scene.add(group);
+
+            const color = 0xffffff;
+            const loader = new THREE.GLTFLoader();
+            loader.load(file, (gltf) => {
+                const model = gltf.scene;
+                model.traverse((child) => {
+                    if (!child.isMesh) return;
+                    child.material = new THREE.MeshStandardMaterial({
+                        color,
+                        metalness: 0.08,
+                        roughness: 0.52
+                    });
+                });
+                group.add(model);
+                fitModelToView(model, camera);
+            });
+
+            function resize() {
+                const nextWidth = viewer.clientWidth || card.clientWidth || width;
+                const nextHeight = viewer.clientHeight || card.clientHeight || height;
+                renderer.setSize(nextWidth, nextHeight);
+                camera.aspect = nextWidth / nextHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            return { scene, camera, renderer, group, resize };
+        }
+
+        let individualPartPreviewsStarted = false;
+
+        function startIndividualPartPreviews() {
+            if (individualPartPreviewsStarted) return;
+            individualPartPreviewsStarted = true;
+
+            document.querySelectorAll('.part-preview-card').forEach((card) => {
+                const preview = initIndividualPartPreview(card);
+                if (preview) individualPartPreviews.push(preview);
+            });
+
+            renderIndividualPartPreviews();
+        }
+
+        function renderIndividualPartPreviews() {
+            individualPartPreviews.forEach((preview) => {
+                preview.group.rotation.y += 0.008;
+                preview.renderer.render(preview.scene, preview.camera);
+            });
+            requestAnimationFrame(renderIndividualPartPreviews);
+        }
+
+        const spinningAnimationCard = document.getElementById('spinning-animation-card');
+        if ('IntersectionObserver' in window && spinningAnimationCard) {
+            const partPreviewObserver = new IntersectionObserver((entries, observerInstance) => {
+                if (!entries.some(entry => entry.isIntersecting)) return;
+                startIndividualPartPreviews();
+                observerInstance.disconnect();
+            }, { rootMargin: '250px' });
+            partPreviewObserver.observe(spinningAnimationCard);
+        } else {
+            startIndividualPartPreviews();
+        }
+
+        window.addEventListener('resize', () => individualPartPreviews.forEach(preview => preview.resize()));
+
+        /* ==========================================
+           4. STEP 5: SCROLL REVEAL OBSERVER
+           ========================================== */
+        const revealElements = document.querySelectorAll('.reveal-on-scroll');
+        
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { 
+            threshold: 0.15, 
+            rootMargin: "0px 0px -50px 0px" 
+        });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        document.querySelector('.build-button-container').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                window.location.href = 'configurator.html';
+            }
+        });
+
+    </script>
+    <script src="site-config.js"></script>
+    <script src="homepage-text.js"></script>
+    <script src="cart-badge.js"></script>
+</body>
+</html>
