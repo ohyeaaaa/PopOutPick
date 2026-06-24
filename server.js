@@ -1274,6 +1274,14 @@ function canonicalizeDesignFileNames(value) {
     }, {});
 }
 
+function canonicalizeDesignColors(value) {
+    const source = asPlainObject(value) || {};
+    return [...CHECKOUT_DESIGN_PART_KEYS].reduce((designColors, partKey) => {
+        designColors[partKey] = cleanColor(source[partKey], '#1a1a1a');
+        return designColors;
+    }, {});
+}
+
 function canonicalizeSelections(value) {
     const source = asPlainObject(value);
     assertCheckout(source, 'Configured products must include selections.');
@@ -1305,6 +1313,7 @@ function canonicalizeSelections(value) {
         top: cleanColor(source.top),
         bottom: cleanColor(source.bottom),
         designFileNames: canonicalizeDesignFileNames(source.designFileNames),
+        designColors: canonicalizeDesignColors(source.designColors),
         designAddOns,
         designTransforms: canonicalizeDesignTransforms(source.designTransforms),
         holders: holders.map(holder => {
@@ -1342,6 +1351,7 @@ function canonicalizeCheckoutItem(value, index) {
         const partKey = getShopProductPartKey(product);
         const addOns = canonicalizeDesignAddOnKeys(clientAddOnKeys(item.addOns), partKey || '');
         assertCheckout(partKey || addOns.length === 0, 'This shop product cannot have design add-ons.');
+        const designColor = addOns.length ? cleanColor(item.designColor, '#1a1a1a') : null;
 
         const unitPrice = roundMoney(moneyOrZero(product.price) + addOns.reduce((sum, addOn) => sum + addOn.price, 0));
         return {
@@ -1354,6 +1364,7 @@ function canonicalizeCheckoutItem(value, index) {
             unitPrice,
             lineTotal: roundMoney(unitPrice * quantity),
             addOns,
+            designColor,
             partKey,
             selections: null
         };

@@ -178,6 +178,11 @@ let selections = {
         top: null,
         bottom: null
     },
+    designColors: {
+        slider: '#1a1a1a',
+        top: '#1a1a1a',
+        bottom: '#1a1a1a'
+    },
     designAddOns: {
         slider: false,
         top: false,
@@ -199,11 +204,24 @@ let selections = {
 
 const defaultSelections = JSON.parse(JSON.stringify(selections));
 
-const colors = ["#1a1a1a", "#ffffff", "#e53935", "#1e88e5", "#90a4ae"];
+const colors = ["#1a1a1a", "#ffffff", "#e53935", "#1e88e5"];
 const blackColor = "#1a1a1a";
 const whiteColor = "#ffffff";
+const defaultDesignColor = "#1a1a1a";
 const designPartKeys = ['slider', 'top', 'bottom'];
 const designAddOnKeys = ['slider', 'top', 'top2d', 'bottom'];
+
+function normalizeHexColor(value, fallback = defaultDesignColor) {
+    const color = String(value || '').trim().toLowerCase();
+    return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function getDefaultDesignColors(source = {}) {
+    return designPartKeys.reduce((designColors, key) => {
+        designColors[key] = normalizeHexColor(source?.[key], defaultDesignColor);
+        return designColors;
+    }, {});
+}
 
 function isBlackColor(color) {
     return String(color || '').toLowerCase() === blackColor;
@@ -327,6 +345,7 @@ function normalizePersistedCartItem(item, index = 0) {
             designImages: { ...(normalized.selections.designImages || {}) },
             designFileNames: { ...(normalized.selections.designFileNames || {}) },
             designFiles: getEmptyDesignFiles(),
+            designColors: getDefaultDesignColors(normalized.selections.designColors),
             designAddOns: { ...(normalized.selections.designAddOns || {}) },
             designTransforms: JSON.parse(JSON.stringify(normalized.selections.designTransforms || {})),
             holders: JSON.parse(JSON.stringify(normalized.selections.holders || []))
@@ -335,6 +354,9 @@ function normalizePersistedCartItem(item, index = 0) {
 
     if ('designFile' in normalized) {
         normalized.designFile = null;
+    }
+    if ('designColor' in normalized) {
+        normalized.designColor = normalizeHexColor(normalized.designColor, defaultDesignColor);
     }
 
     return normalized;
@@ -1106,9 +1128,11 @@ function render() {
             }).join('');
 
             if (isDesignEnabled) {
+                const designColor = getDesignColor(activeKey);
                 html += `
+                    ${renderDesignColorGrid(activeKey)}
                     <div class="label-caps">${escapeHtml(getText('normalSteps.previewLabel', '2D PREVIEW'))}</div>
-                    <div class="design-preview-box design-upload-dropzone ${isWhiteColor(selections[activeKey]) ? 'preview-contrast-light-part' : ''} ${isBlackColor(selections[activeKey]) ? 'preview-contrast-dark-part' : ''}" style="background:${selections[activeKey]};" onclick="triggerDesignUpload(event, '${activeKey}')" ondragover="handleDesignDragOver(event)" ondragleave="handleDesignDragLeave(event)" ondrop="handleDesignDrop(event, '${activeKey}')">
+                    <div class="design-preview-box design-upload-dropzone ${isWhiteColor(designColor) ? 'preview-contrast-light-part' : ''} ${isBlackColor(designColor) ? 'preview-contrast-dark-part' : ''}" style="background:${designColor};" onclick="triggerDesignUpload(event, '${activeKey}')" ondragover="handleDesignDragOver(event)" ondragleave="handleDesignDragLeave(event)" ondrop="handleDesignDrop(event, '${activeKey}')">
                         <input id="design-upload-${activeKey}" class="design-upload-input" type="file" accept="image/*" onchange="handleDesignUpload(event, '${activeKey}')">
                         ${previewSrc
                             ? `<img id="design-preview-image-${activeKey}" class="design-preview-image" src="${previewSrc}" alt="${escapeHtml(getText('normalSteps.previewAlt', 'Uploaded custom design preview'))}" style="left:calc(50% + ${transform.x}px); top:calc(50% + ${transform.y}px); transform:translate(-50%, -50%) scale(${transform.scale / 100});" onpointerdown="startDesignDrag(event, '${activeKey}')">`
@@ -1144,13 +1168,23 @@ function renderGrid(id, key) {
     });
 }
 
+function renderDesignColorGrid(partKey) {
+    return `
+        <div class="label-caps">${escapeHtml(getText('normalSteps.designColorLabel', 'DESIGN COLOUR'))}</div>
+        <div class="color-grid design-color-grid">
+            ${colors.map(color => `
+                <button class="swatch ${getDesignColor(partKey) === color ? 'selected' : ''}" type="button" style="background-color:${color};" onclick="setDesignColor('${partKey}', '${color}')">
+                    <div class="mini-check">${escapeHtml(getText('symbols.configured', '✓'))}</div>
+                </button>`).join('')}
+        </div>`;
+}
+
 function getColorName(color) {
     const names = {
         '#1a1a1a': 'Black',
         '#ffffff': 'White',
         '#e53935': 'Red',
-        '#1e88e5': 'Blue',
-        '#90a4ae': 'Grey'
+        '#1e88e5': 'Blue'
     };
     return names[color.toLowerCase()] || color;
 }
@@ -1178,6 +1212,7 @@ function buildBreakdown() {
         addOns.forEach((addOn) => {
             const designLabel = formatText(getText('normalSteps.designAddedLabel', '{type} design added'), { type: addOn.type || 'Custom' });
             details.push(`${escapeHtml(designLabel)} (+${formatCheckoutMoney(addOn.price)})`);
+            details.push(renderColorDetail(getText('normalSteps.designColorLabel', 'Design colour'), getDesignColor(key)));
         });
         if (addOns.length && selections.designFileNames?.[key]) {
             details.push(`${escapeHtml(getText('normalSteps.designFileLabel', 'File'))}: ${escapeHtml(selections.designFileNames[key])}`);
@@ -1433,6 +1468,9 @@ function createCartItemFromShopProduct(product) {
     selectedAddOns.forEach((addOn) => {
         details.push(getDesignAddOnSummary(addOn));
     });
+    if (partKey && selectedAddOns.length) {
+        details.push(`${getText('normalSteps.designColorLabel', 'Design colour')}: ${getColorName(getDesignColor(partKey))}`);
+    }
     if (partKey && selectedAddOns.length && selections.designFileNames?.[partKey]) {
         details.push(`${getText('normalSteps.designFileLabel', 'File')}: ${selections.designFileNames[partKey]}`);
     }
@@ -1452,6 +1490,7 @@ function createCartItemFromShopProduct(product) {
         designImage: partKey ? selections.designImages?.[partKey] : null,
         designFileName: partKey ? selections.designFileNames?.[partKey] : null,
         designFile: partKey ? selections.designFiles?.[partKey] : null,
+        designColor: partKey ? getDesignColor(partKey) : null,
         selections: null,
         quantity: 1
     };
@@ -1522,6 +1561,7 @@ function clearDesignAddOnsForPart(partKey) {
     selections.designImages[partKey] = null;
     selections.designFileNames[partKey] = null;
     selections.designFiles[partKey] = null;
+    selections.designColors[partKey] = defaultDesignColor;
     selections.designTransforms[partKey] = { x: 0, y: 0, scale: 100 };
     uploadStatuses.designs[partKey] = null;
     render();
@@ -1532,6 +1572,16 @@ function getSelectedDesignAddOns(source = selections) {
         .filter(key => source.designAddOns?.[key])
         .map(key => ({ key, partKey: getDesignAddOnPartKey(key), ...getDesignAddOnConfig(key) }))
         .filter(addOn => Number.isFinite(addOn.price));
+}
+
+function getDesignColor(partKey, source = selections) {
+    return normalizeHexColor(source.designColors?.[partKey], defaultDesignColor);
+}
+
+function setDesignColor(partKey, color) {
+    if (!designPartKeys.includes(partKey)) return;
+    selections.designColors[partKey] = normalizeHexColor(color, defaultDesignColor);
+    render();
 }
 
 function getConfiguredUnitPrice(source = selections) {
@@ -1565,6 +1615,7 @@ function toggleDesignAddOn(key, enabled) {
         selections.designImages[partKey] = null;
         selections.designFileNames[partKey] = null;
         selections.designFiles[partKey] = null;
+        selections.designColors[partKey] = defaultDesignColor;
         selections.designTransforms[partKey] = { x: 0, y: 0, scale: 100 };
         uploadStatuses.designs[partKey] = null;
     }
@@ -2645,6 +2696,7 @@ function cloneSelectionsForOrder(source) {
         designImages: undefined,
         designFiles: undefined,
         designFileNames: { ...source.designFileNames },
+        designColors: getDefaultDesignColors(source.designColors),
         designAddOns: { ...source.designAddOns },
         designTransforms: JSON.parse(JSON.stringify(source.designTransforms || {})),
         holders: JSON.parse(JSON.stringify(source.holders || []))
@@ -2685,6 +2737,7 @@ function buildOrderPayload() {
             unitPrice: getCartItemUnitPrice(item),
             lineTotal: getCartItemUnitPrice(item) * item.quantity,
             addOns: item.addOns || (item.selections ? getSelectedDesignAddOns(item.selections) : []),
+            designColor: item.designColor || null,
             selections: cloneSelectionsForOrder(item.selections)
         })),
         totals: {

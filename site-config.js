@@ -163,6 +163,7 @@ window.POPOUTPICK_CONFIG = {
             titles: ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bottom Plate"],
             colorLabel: "COLOR",
             customDesignLabel: "CUSTOM DESIGN IMAGE",
+            designColorLabel: "DESIGN COLOUR",
             uploadText: "Click to upload",
             previewLabel: "2D PREVIEW",
             previewEmptyText: "Upload a custom design below to preview it here",
