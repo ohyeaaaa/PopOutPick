@@ -3216,12 +3216,35 @@ function handleConfiguratorHashRoute() {
     return false;
 }
 
+function getSamePageHashFromLink(link) {
+    if (!link?.hash) return '';
+
+    const linkUrl = new URL(link.href, window.location.href);
+    const currentPath = window.location.pathname.split('/').pop() || 'configurator.html';
+    const linkPath = linkUrl.pathname.split('/').pop() || 'configurator.html';
+    return linkUrl.origin === window.location.origin && linkPath === currentPath ? linkUrl.hash : '';
+}
+
+function handleConfiguratorNavClick(event) {
+    const link = event.target.closest('a[href]');
+    const hash = getSamePageHashFromLink(link);
+    if (hash !== '#shop' && hash !== '#checkout-box') return;
+
+    event.preventDefault();
+    if (window.location.hash !== hash) {
+        window.location.hash = hash;
+        return;
+    }
+    handleConfiguratorHashRoute();
+}
+
 // INITIAL ENGINE EXECUTION
 applyTypographyConfig();
 applyStaticTextConfig();
 restoreCartFromStorage();
 updateSiteCartCount();
 loadManagedCheckoutSettings();
+document.addEventListener('click', handleConfiguratorNavClick);
 window.addEventListener('hashchange', () => {
     handleConfiguratorHashRoute();
 });
