@@ -941,6 +941,33 @@ textarea {
 .cart-action-status.is-visible {
     opacity: 1;
 }
+.shop-cart-added-modal {
+    align-items: center;
+    background: rgba(17, 17, 17, 0.48);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 24px;
+    position: fixed;
+    z-index: 9999;
+}
+.shop-cart-added-dialog {
+    background: white;
+    border: 1px solid #e8e1dc;
+    border-radius: 18px;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.22);
+    max-width: 360px;
+    padding: 28px;
+    text-align: center;
+    width: 100%;
+}
+.shop-cart-added-dialog p {
+    color: #111111;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.4;
+    margin: 0 0 22px;
+}
 .btn-next {
     background: var(--brand-green);
     color: white;

@@ -246,6 +246,8 @@ window.POPOUTPICK_CONFIG = {
             discountLabel: "Discount",
             totalLabel: "Total",
             freeShippingLabel: "Free",
+            shopAddedToCartMessage: "Item has been added to cart",
+            shopAddedToCartOk: "OK",
             promoCodeLabel: "Promo code",
             promoCodePlaceholder: "Enter code",
             promoCodeHelp: "Discounts update automatically before you pay.",

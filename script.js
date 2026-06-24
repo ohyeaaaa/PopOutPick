@@ -1490,7 +1490,7 @@ function addShopProductToCart(productId) {
     checkoutState.cartItems.push(createCartItemFromShopProduct(product));
     saveCartToStorage();
     updateSiteCartCount();
-    openCart();
+    showShopCartAddedModal();
 }
 
 function openShopProductDetail(productId) {
@@ -1522,6 +1522,7 @@ function addActiveShopProductToCart() {
     checkoutState.cartItems.push(createCartItemFromShopProduct(product));
     saveCartToStorage();
     updateSiteCartCount();
+    showShopCartAddedModal();
 }
 
 function getDesignAddOnConfig(key) {
@@ -2418,6 +2419,28 @@ function setCartActionStatus(message = '') {
     if (!status) return;
     status.textContent = message;
     status.classList.toggle('is-visible', Boolean(message));
+}
+
+function closeShopCartAddedModal() {
+    document.getElementById('shop-cart-added-modal')?.remove();
+}
+
+function showShopCartAddedModal() {
+    closeShopCartAddedModal();
+
+    const modal = document.createElement('div');
+    modal.id = 'shop-cart-added-modal';
+    modal.className = 'shop-cart-added-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+        <div class="shop-cart-added-dialog">
+            <p>${escapeHtml(getCheckoutText('shopAddedToCartMessage', 'Item has been added to cart'))}</p>
+            <button type="button" class="btn-nav btn-next" onclick="closeShopCartAddedModal()">${escapeHtml(getCheckoutText('shopAddedToCartOk', 'OK'))}</button>
+        </div>`;
+
+    document.body.appendChild(modal);
+    modal.querySelector('button')?.focus();
 }
 
 function renderFinalReviewCartPrompt(show = false) {
