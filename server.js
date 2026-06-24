@@ -7,6 +7,7 @@ const net = require('net');
 const tls = require('tls');
 const path = require('path');
 const crypto = require('crypto');
+const vm = require('vm');
 
 const ROOT_DIR = __dirname;
 loadDotEnv(path.join(ROOT_DIR, '.env'));
@@ -42,25 +43,30 @@ const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const TELEGRAM_CUSTOMER_CHAT_MAP_FILE = process.env.TELEGRAM_CUSTOMER_CHAT_MAP_FILE || 'data/telegram-chat-map.json';
 const TELEGRAM_CUSTOMER_CHAT_MAP = parseJsonEnv(process.env.TELEGRAM_CUSTOMER_CHAT_MAP, {});
-const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_URL = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const CHECKOUT_ALLOWED_ORIGINS = readCsv(process.env.CHECKOUT_ALLOWED_ORIGINS);
+const CHECKOUT_UPLOAD_MAX_BYTES = readPositiveInt(process.env.CHECKOUT_UPLOAD_MAX_BYTES, 20 * 1024 * 1024);
+const CHECKOUT_REQUEST_MAX_BYTES = readPositiveInt(process.env.CHECKOUT_REQUEST_MAX_BYTES, 80 * 1024 * 1024);
+const SITE_CONFIG = loadSiteConfig();
+const COMMERCE_CONFIG = SITE_CONFIG.commerce || {};
+const CHECKOUT_DESIGN_PART_KEYS = new Set(['slider', 'top', 'bottom']);
 
 const PUBLIC_ROOT_FILES = new Set([
     'index.html',
     'configurator.html',
-    'PopOutPick-payment.html',
     'style.css',
     'script.js',
     'site-config.js',
+    'header-controls.js',
     'cart-badge.js',
-    'homepage-text.js',
-    'PayNOW QR code.jpg'
+    'homepage-text.js'
 ]);
 
 const ADMIN_FILES = new Set([
-    'admin.html',
-    'admin.css',
-    'admin.js'
+    'admin/index.html',
+    'admin/admin.css',
+    'admin/admin.js'
 ]);
 
 const ROUTES = new Map([
@@ -69,10 +75,9 @@ const ROUTES = new Map([
     ['/configurator', 'configurator.html'],
     ['/configurator.html', 'configurator.html'],
     ['/checkout', 'configurator.html'],
-    ['/payment', 'PopOutPick-payment.html'],
-    ['/PopOutPick-payment.html', 'PopOutPick-payment.html'],
-    ['/admin', 'admin.html'],
-    ['/admin.html', 'admin.html']
+    ['/payment', 'configurator.html'],
+    ['/admin', 'admin/index.html'],
+    ['/admin.html', 'admin/index.html']
 ]);
 
 const ASSET_EXTENSIONS = new Set([
@@ -167,6 +172,23 @@ function loadJsonFile(filePath, fallback) {
         return { ...fallback, ...JSON.parse(fs.readFileSync(filePath, 'utf8')) };
     } catch {
         return { ...fallback };
+    }
+}
+
+function loadSiteConfig() {
+    const configPath = path.join(ROOT_DIR, 'site-config.js');
+    const context = {
+        window: {},
+        console: { warn() {}, error() {}, log() {} }
+    };
+
+    try {
+        const code = fs.readFileSync(configPath, 'utf8');
+        vm.runInNewContext(code, context, { filename: configPath, timeout: 1000 });
+        return context.window.POPOUTPICK_CONFIG || {};
+    } catch (error) {
+        console.error(`Could not load ${configPath}: ${error.message}`);
+        return {};
     }
 }
 
@@ -423,12 +445,82 @@ function wantsJson(req) {
     return req.url.startsWith('/api/') || accept.includes('application/json');
 }
 
+function getRequestOrigin(req) {
+    return String(req.headers.origin || '').replace(/\/+$/, '');
+}
+
+function originFromUrl(value) {
+    try {
+        return new URL(value).origin;
+    } catch {
+        return '';
+    }
+}
+
+function isLocalHostname(hostname) {
+    return hostname === 'localhost'
+        || hostname === '127.0.0.1'
+        || hostname === '::1'
+        || hostname === '[::1]';
+}
+
+function isLocalDevelopment(req) {
+    const publicOrigin = originFromUrl(PUBLIC_BASE_URL);
+    if (publicOrigin) {
+        try {
+            return isLocalHostname(new URL(publicOrigin).hostname);
+        } catch {
+            return false;
+        }
+    }
+
+    const host = String(req.headers.host || '').split(':')[0];
+    return isLocalHostname(host);
+}
+
+function isCheckoutOriginAllowed(origin, req) {
+    if (!origin) return true;
+    if (CHECKOUT_ALLOWED_ORIGINS.has(origin)) return true;
+
+    const publicOrigin = originFromUrl(PUBLIC_BASE_URL);
+    if (publicOrigin && origin === publicOrigin) return true;
+
+    const host = req.headers.host;
+    if (!host) return false;
+    const selfOrigin = `${isHttpsRequest(req) ? 'https' : 'http'}://${host}`;
+    return origin === selfOrigin;
+}
+
+function isSameOriginRequest(req) {
+    const origin = getRequestOrigin(req);
+    if (!origin) return true;
+
+    const host = req.headers.host;
+    if (!host) return false;
+    const selfOrigin = `${isHttpsRequest(req) ? 'https' : 'http'}://${host}`;
+    return origin === selfOrigin;
+}
+
+function getCorsHeaders(req) {
+    const origin = getRequestOrigin(req);
+    if (!origin || !isCheckoutOriginAllowed(origin, req)) return {};
+
+    return {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Max-Age': '600',
+        'Vary': 'Origin'
+    };
+}
+
 function sendJson(req, res, statusCode, body) {
     setSecurityHeaders(req, res);
     const payload = JSON.stringify(body);
     res.writeHead(statusCode, {
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Length': Buffer.byteLength(payload),
+        ...(getCorsHeaders(req)),
         'Cache-Control': 'no-store'
     });
 
@@ -495,6 +587,7 @@ function sendOptions(req, res) {
     setSecurityHeaders(req, res);
     res.writeHead(204, {
         'Allow': 'GET, HEAD, POST, OPTIONS',
+        ...(getCorsHeaders(req)),
         'Cache-Control': 'no-store'
     });
     res.end();
@@ -531,6 +624,104 @@ function readJsonBody(req, limitBytes = 128 * 1024) {
 
         req.on('error', reject);
     });
+}
+
+function readRequestBuffer(req, limitBytes = 128 * 1024) {
+    return new Promise((resolve, reject) => {
+        let size = 0;
+        const chunks = [];
+
+        req.on('data', chunk => {
+            size += chunk.length;
+            if (size > limitBytes) {
+                reject(new Error('Request body is too large.'));
+                req.destroy();
+                return;
+            }
+            chunks.push(chunk);
+        });
+
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+    });
+}
+
+function parseContentDisposition(value = '') {
+    const parts = String(value).split(';').map(part => part.trim());
+    const result = {};
+    for (const part of parts.slice(1)) {
+        const equalsIndex = part.indexOf('=');
+        if (equalsIndex === -1) continue;
+        const key = part.slice(0, equalsIndex).trim().toLowerCase();
+        let itemValue = part.slice(equalsIndex + 1).trim();
+        if (itemValue.startsWith('"') && itemValue.endsWith('"')) {
+            itemValue = itemValue.slice(1, -1).replace(/\\"/g, '"');
+        }
+        result[key] = itemValue;
+    }
+    return result;
+}
+
+function parseMultipartFormData(buffer, contentType) {
+    const boundary = String(contentType || '').match(/boundary=(?:"([^"]+)"|([^;]+))/i)?.[1]
+        || String(contentType || '').match(/boundary=(?:"([^"]+)"|([^;]+))/i)?.[2];
+    assertCheckout(boundary, 'Missing multipart boundary.');
+
+    const boundaryText = `--${boundary}`;
+    const body = buffer.toString('binary');
+    const fields = {};
+    const files = new Map();
+
+    for (const rawPart of body.split(boundaryText).slice(1, -1)) {
+        let part = rawPart;
+        if (part.startsWith('\r\n')) part = part.slice(2);
+        if (part.endsWith('\r\n')) part = part.slice(0, -2);
+
+        const separatorIndex = part.indexOf('\r\n\r\n');
+        if (separatorIndex === -1) continue;
+
+        const rawHeaders = part.slice(0, separatorIndex);
+        const rawContent = part.slice(separatorIndex + 4);
+        const headers = {};
+        rawHeaders.split('\r\n').forEach(line => {
+            const colonIndex = line.indexOf(':');
+            if (colonIndex === -1) return;
+            headers[line.slice(0, colonIndex).trim().toLowerCase()] = line.slice(colonIndex + 1).trim();
+        });
+
+        const disposition = parseContentDisposition(headers['content-disposition']);
+        const name = disposition.name;
+        if (!name) continue;
+
+        const contentBuffer = Buffer.from(rawContent, 'binary');
+        if (disposition.filename !== undefined) {
+            files.set(name, {
+                fieldName: name,
+                originalName: disposition.filename,
+                contentType: headers['content-type'] || 'application/octet-stream',
+                buffer: contentBuffer
+            });
+        } else {
+            fields[name] = contentBuffer.toString('utf8');
+        }
+    }
+
+    return { fields, files };
+}
+
+async function readCheckoutPayload(req) {
+    const contentType = String(req.headers['content-type'] || '');
+    if (contentType.includes('multipart/form-data')) {
+        const buffer = await readRequestBuffer(req, CHECKOUT_REQUEST_MAX_BYTES);
+        const form = parseMultipartFormData(buffer, contentType);
+        return {
+            order: JSON.parse(form.fields.order || '{}'),
+            fileMetadata: JSON.parse(form.fields.fileMetadata || '[]'),
+            uploadedFiles: form.files
+        };
+    }
+
+    return readJsonBody(req, 512 * 1024);
 }
 
 function buildLogEntry(req, statusCode, startedAt) {
@@ -935,6 +1126,861 @@ async function sendOrderNotifications(order) {
     return results;
 }
 
+class CheckoutValidationError extends Error {
+    constructor(message, statusCode = 400) {
+        super(message);
+        this.name = 'CheckoutValidationError';
+        this.statusCode = statusCode;
+    }
+}
+
+function assertCheckout(condition, message, statusCode = 400) {
+    if (!condition) throw new CheckoutValidationError(message, statusCode);
+}
+
+function asPlainObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+
+function cleanText(value, maxLength = 240) {
+    return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
+}
+
+function cleanOptionalText(value, maxLength = 240) {
+    const cleaned = cleanText(value, maxLength);
+    return cleaned || null;
+}
+
+function roundMoney(value) {
+    const number = Number(value);
+    assertCheckout(Number.isFinite(number), 'Invalid money value.');
+    return Math.round(number * 100) / 100;
+}
+
+function moneyOrZero(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
+}
+
+function assertMoneyMatches(label, clientValue, serverValue) {
+    assertCheckout(clientValue !== undefined && clientValue !== null, `Missing ${label}.`);
+    const clientMoney = roundMoney(clientValue);
+    const canonicalMoney = roundMoney(serverValue);
+    assertCheckout(Math.abs(clientMoney - canonicalMoney) < 0.01, `${label} does not match the server total.`);
+}
+
+function normalizePromoCode(code = '') {
+    return String(code || '').trim().toUpperCase();
+}
+
+function getConfiguredProductBasePrice() {
+    return moneyOrZero(COMMERCE_CONFIG.productBasePrice || 49);
+}
+
+function getShopProducts() {
+    return Array.isArray(COMMERCE_CONFIG.shopProducts) ? COMMERCE_CONFIG.shopProducts : [];
+}
+
+function getShopProductById(productId) {
+    const id = cleanText(productId, 120);
+    return getShopProducts().find(product => product.id === id) || null;
+}
+
+function getShopProductPartKey(product) {
+    const part = product?.previewPart;
+    if (product?.shopPartType === 'holder' || String(part || '').startsWith('holder:')) return null;
+    if (part === 'module') return 'module';
+    if (part === 'slider') return 'slider';
+    if (part === 'top') return 'top';
+    if (part === 'bottom' || part === 'base') return 'bottom';
+    return null;
+}
+
+function getDesignAddOnConfig(key) {
+    return asPlainObject(COMMERCE_CONFIG.designAddOns)?.[key] || null;
+}
+
+function getDesignAddOnPartKey(key) {
+    const config = getDesignAddOnConfig(key);
+    return config?.partKey || key;
+}
+
+function canonicalDesignAddOn(key) {
+    const addOnKey = cleanText(key, 40);
+    const config = getDesignAddOnConfig(addOnKey);
+    assertCheckout(config, `Unknown design add-on: ${addOnKey || 'blank'}.`);
+
+    const partKey = getDesignAddOnPartKey(addOnKey);
+    assertCheckout(CHECKOUT_DESIGN_PART_KEYS.has(partKey), `Invalid design add-on part: ${partKey}.`);
+
+    return {
+        key: addOnKey,
+        partKey,
+        label: cleanText(config.label || addOnKey, 120),
+        price: moneyOrZero(config.price),
+        type: cleanText(config.type || 'Custom', 40)
+    };
+}
+
+function canonicalizeDesignAddOnKeys(keys, requiredPartKey = '') {
+    const seen = new Set();
+    const addOns = [];
+
+    for (const key of keys) {
+        const addOn = canonicalDesignAddOn(key);
+        if (requiredPartKey) {
+            assertCheckout(addOn.partKey === requiredPartKey, `Design add-on ${addOn.key} is not valid for ${requiredPartKey}.`);
+        }
+        if (seen.has(addOn.key)) continue;
+        seen.add(addOn.key);
+        addOns.push(addOn);
+    }
+
+    const parts = new Set(addOns.map(addOn => addOn.partKey));
+    assertCheckout(parts.size === addOns.length, 'Only one design add-on is allowed per part.');
+    return addOns;
+}
+
+function clientAddOnKeys(addOns) {
+    if (!Array.isArray(addOns)) return [];
+    return addOns
+        .map(addOn => cleanText(asPlainObject(addOn)?.key || addOn, 40))
+        .filter(Boolean);
+}
+
+function cleanColor(value, fallback = '#ffffff') {
+    const color = cleanText(value, 32);
+    return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+}
+
+function canonicalizeDesignTransforms(value) {
+    const source = asPlainObject(value) || {};
+    return [...CHECKOUT_DESIGN_PART_KEYS].reduce((transforms, partKey) => {
+        const transform = asPlainObject(source[partKey]) || {};
+        transforms[partKey] = {
+            x: Number.isFinite(Number(transform.x)) ? Number(transform.x) : 0,
+            y: Number.isFinite(Number(transform.y)) ? Number(transform.y) : 0,
+            scale: Number.isFinite(Number(transform.scale)) ? Number(transform.scale) : 100
+        };
+        return transforms;
+    }, {});
+}
+
+function canonicalizeDesignFileNames(value) {
+    const source = asPlainObject(value) || {};
+    return [...CHECKOUT_DESIGN_PART_KEYS].reduce((fileNames, partKey) => {
+        fileNames[partKey] = cleanOptionalText(source[partKey], 180);
+        return fileNames;
+    }, {});
+}
+
+function canonicalizeSelections(value) {
+    const source = asPlainObject(value);
+    assertCheckout(source, 'Configured products must include selections.');
+
+    const type = cleanText(source.type, 20);
+    assertCheckout(type === 'guitar' || type === 'bass', 'Invalid configured product type.');
+
+    const allowedThicknesses = {
+        guitar: new Set(['10mm', '8mm', '7mm', '6mm']),
+        bass: new Set(['30mm', '20mm', '10mm', '8mm', '6mm'])
+    };
+    const holders = Array.isArray(source.holders) ? source.holders : [];
+    assertCheckout(holders.length === 4, 'Configured products must include four pickholders.');
+
+    const designAddOns = {};
+    for (const key of Object.keys(asPlainObject(COMMERCE_CONFIG.designAddOns) || {})) {
+        designAddOns[key] = Boolean(asPlainObject(source.designAddOns)?.[key]);
+    }
+
+    const enabledAddOns = canonicalizeDesignAddOnKeys(Object.entries(designAddOns)
+        .filter(([, enabled]) => enabled)
+        .map(([key]) => key));
+
+    return {
+        type,
+        body: cleanColor(source.body, '#1a1a1a'),
+        module: cleanColor(source.module),
+        slider: cleanColor(source.slider),
+        top: cleanColor(source.top),
+        bottom: cleanColor(source.bottom),
+        designFileNames: canonicalizeDesignFileNames(source.designFileNames),
+        designAddOns,
+        designTransforms: canonicalizeDesignTransforms(source.designTransforms),
+        holders: holders.map(holder => {
+            const thickness = cleanText(asPlainObject(holder)?.t, 20);
+            assertCheckout(allowedThicknesses[type].has(thickness), `Invalid ${type} pickholder thickness.`);
+            return {
+                c1: cleanColor(holder.c1),
+                c2: cleanColor(holder.c2),
+                t: thickness
+            };
+        }),
+        _enabledAddOns: enabledAddOns
+    };
+}
+
+function createCanonicalItemId(value, index) {
+    const cleaned = cleanText(value, 120).replace(/[^a-z0-9._:-]+/gi, '-').replace(/^-+|-+$/g, '');
+    return cleaned || `item-${index + 1}`;
+}
+
+function canonicalizeCheckoutItem(value, index) {
+    const item = asPlainObject(value);
+    assertCheckout(item, 'Invalid checkout item.');
+
+    const quantity = Number(item.quantity);
+    assertCheckout(Number.isInteger(quantity) && quantity >= 1 && quantity <= 99, 'Item quantity must be between 1 and 99.');
+
+    const itemId = createCanonicalItemId(item.id, index);
+    const productId = cleanText(item.productId, 120);
+
+    if (cleanText(item.type, 40) === 'shop-product' || productId) {
+        const product = getShopProductById(productId);
+        assertCheckout(product, `Unknown shop product: ${productId || 'blank'}.`);
+
+        const partKey = getShopProductPartKey(product);
+        const addOns = canonicalizeDesignAddOnKeys(clientAddOnKeys(item.addOns), partKey || '');
+        assertCheckout(partKey || addOns.length === 0, 'This shop product cannot have design add-ons.');
+
+        const unitPrice = roundMoney(moneyOrZero(product.price) + addOns.reduce((sum, addOn) => sum + addOn.price, 0));
+        return {
+            id: itemId,
+            type: 'shop-product',
+            productId: product.id,
+            name: cleanText(product.name || item.name || 'Shop product', 180),
+            description: cleanText(item.description || product.description || '', 1000),
+            quantity,
+            unitPrice,
+            lineTotal: roundMoney(unitPrice * quantity),
+            addOns,
+            partKey,
+            selections: null
+        };
+    }
+
+    const selections = canonicalizeSelections(item.selections);
+    const addOns = selections._enabledAddOns;
+    delete selections._enabledAddOns;
+
+    const unitPrice = roundMoney(getConfiguredProductBasePrice() + addOns.reduce((sum, addOn) => sum + addOn.price, 0));
+    const productType = selections.type.charAt(0).toUpperCase() + selections.type.slice(1);
+    return {
+        id: itemId,
+        type: 'configured-design',
+        productId: null,
+        name: cleanText(item.name || `Custom ${productType} PopOutPick`, 180),
+        description: cleanText(item.description || `Configured set with 4 pickholders`, 1000),
+        quantity,
+        unitPrice,
+        lineTotal: roundMoney(unitPrice * quantity),
+        addOns,
+        selections
+    };
+}
+
+function canonicalizeCheckoutItems(items) {
+    assertCheckout(Array.isArray(items), 'Order items must be an array.');
+    assertCheckout(items.length >= 1 && items.length <= 20, 'Orders must include between 1 and 20 items.');
+    return items.map(canonicalizeCheckoutItem);
+}
+
+function canonicalizeCustomer(order) {
+    const customer = asPlainObject(order.customer) || {};
+    const name = cleanText(customer.name, 120);
+    const email = cleanText(customer.email, 254);
+    const phone = cleanText(customer.phone, 40);
+    const telegram = cleanOptionalText(customer.telegram, 80);
+
+    assertCheckout(name.length >= 1, 'Customer name is required.');
+    assertCheckout(email.length >= 3 && email.includes('@'), 'A valid customer email is required.');
+    assertCheckout(phone.length >= 3, 'Customer phone is required.');
+
+    return { name, email, phone, telegram };
+}
+
+function getDeliveryAddressSummary(delivery) {
+    return [
+        delivery.block ? `Blk ${delivery.block}` : '',
+        delivery.street,
+        delivery.floor || delivery.unit ? `#${delivery.floor || ''}${delivery.unit ? `-${delivery.unit}` : ''}` : '',
+        delivery.building,
+        delivery.postal ? `Singapore ${delivery.postal}` : ''
+    ].filter(Boolean).join(', ');
+}
+
+function parseCheckoutDateText(value) {
+    const match = cleanText(value, 40).match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+    assertCheckout(match, 'Invalid meetup date.');
+
+    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const day = Number(match[1]);
+    const month = months.indexOf(match[2].toLowerCase());
+    const year = Number(match[3]);
+    assertCheckout(month >= 0, 'Invalid meetup month.');
+
+    const date = new Date(year, month, day);
+    date.setHours(0, 0, 0, 0);
+    assertCheckout(date.getFullYear() === year && date.getMonth() === month && date.getDate() === day, 'Invalid meetup date.');
+    return date;
+}
+
+function toLocalDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getEarliestCheckoutDate() {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 7);
+    return date;
+}
+
+function getConfiguredMeetupLocation(locationId) {
+    const locations = Array.isArray(COMMERCE_CONFIG.meetupLocations) ? COMMERCE_CONFIG.meetupLocations : [];
+    return locations.find(location => location.id === locationId) || null;
+}
+
+async function requestSupabaseJson(method, endpointPath, body = null) {
+    assertCheckout(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY, 'Checkout backend is not configured.', 503);
+
+    const projectUrl = new URL(SUPABASE_URL);
+    const payload = body === null ? null : JSON.stringify(body);
+    const headers = {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Accept: 'application/json'
+    };
+
+    if (payload !== null) {
+        headers['Content-Type'] = 'application/json';
+        headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+
+    const response = await requestBuffer({
+        hostname: projectUrl.hostname,
+        path: endpointPath,
+        method,
+        headers,
+        timeout: 30000
+    }, payload);
+
+    const text = response.body.toString('utf8');
+    let parsed = null;
+    if (text) {
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            parsed = null;
+        }
+    }
+    if (response.status < 200 || response.status >= 300) {
+        const details = typeof parsed?.message === 'string' ? parsed.message : text.slice(0, 300);
+        throw new Error(`Supabase request failed (${response.status}): ${details}`);
+    }
+
+    return parsed;
+}
+
+async function callSupabaseRpc(name, body = {}) {
+    return requestSupabaseJson('POST', `/rest/v1/rpc/${encodeURIComponent(name)}`, body);
+}
+
+async function ensureOrderStorageBucketForServer(bucket) {
+    await callSupabaseRpc('ensure_order_storage_bucket', { p_bucket_id: bucket });
+}
+
+async function uploadSupabaseStorageObject(file) {
+    assertCheckout(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY, 'Checkout backend is not configured.', 503);
+
+    const projectUrl = new URL(SUPABASE_URL);
+    const response = await requestBuffer({
+        hostname: projectUrl.hostname,
+        path: `/storage/v1/object/${encodeURIComponent(file.bucket)}/${encodeSupabaseStoragePath(file.storagePath)}`,
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            'Content-Type': file.contentType || 'application/octet-stream',
+            'Content-Length': file.buffer.length,
+            'Cache-Control': '3600',
+            'x-upsert': 'false'
+        },
+        timeout: 30000
+    }, file.buffer);
+
+    if (response.status < 200 || response.status >= 300) {
+        const text = response.body.toString('utf8').slice(0, 300);
+        throw new Error(`Supabase storage upload failed (${response.status}): ${text}`);
+    }
+}
+
+async function deleteSupabaseStorageObject(file) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !file?.bucket || !file?.storagePath) return;
+
+    const projectUrl = new URL(SUPABASE_URL);
+    const response = await requestBuffer({
+        hostname: projectUrl.hostname,
+        path: `/storage/v1/object/${encodeURIComponent(file.bucket)}/${encodeSupabaseStoragePath(file.storagePath)}`,
+        method: 'DELETE',
+        headers: {
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            apikey: SUPABASE_SERVICE_ROLE_KEY
+        },
+        timeout: 30000
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+        console.warn(`Could not delete orphaned checkout upload ${file.bucket}/${file.storagePath}: ${response.status}`);
+    }
+}
+
+async function deleteCheckoutStorageFiles(files) {
+    await Promise.allSettled(files.map(deleteSupabaseStorageObject));
+}
+
+async function deleteOrderStorageBucket(bucket) {
+    if (!bucket) return;
+
+    try {
+        await callSupabaseRpc('delete_order_storage_bucket', { p_bucket_id: bucket });
+    } catch (error) {
+        console.warn(`Could not delete orphaned checkout bucket ${bucket}: ${error.message}`);
+    }
+}
+
+async function deleteCheckoutStorageBuckets(files) {
+    const buckets = [...new Set(files.map(file => file.bucket).filter(Boolean))];
+    await Promise.allSettled(buckets.map(deleteOrderStorageBucket));
+}
+
+async function uploadCheckoutStorageFiles(files) {
+    const buckets = [...new Set(files.map(file => file.bucket))];
+    await Promise.all(buckets.map(ensureOrderStorageBucketForServer));
+    for (const file of files) {
+        await uploadSupabaseStorageObject(file);
+    }
+}
+
+async function getCheckoutAvailabilityForServer() {
+    try {
+        const data = await callSupabaseRpc('get_checkout_availability', {});
+        return {
+            loaded: true,
+            timeSlots: Array.isArray(data?.timeSlots) ? data.timeSlots : [],
+            blockedDates: Array.isArray(data?.blockedDates) ? data.blockedDates : []
+        };
+    } catch (error) {
+        console.warn(`Could not load checkout availability from Supabase; using server config fallback: ${error.message}`);
+        return {
+            loaded: false,
+            timeSlots: [],
+            blockedDates: []
+        };
+    }
+}
+
+function fallbackTimesForLocation(locationId, date) {
+    const allSlots = Array.isArray(COMMERCE_CONFIG.timeSlots) ? COMMERCE_CONFIG.timeSlots : [];
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isWednesday = dayOfWeek === 3;
+    const isWeekday = !isWeekend && !isWednesday;
+
+    if (locationId === 'ntu') {
+        const ntuAllowed = new Set(['10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM']);
+        return allSlots.filter(time => isWeekday && ntuAllowed.has(time));
+    }
+
+    if (locationId === 'pasir-ris') {
+        if (isWeekday) return allSlots.filter(time => time === '7:00 PM' || time === '8:00 PM');
+        if (isWednesday) return allSlots;
+        return allSlots;
+    }
+
+    return allSlots;
+}
+
+function getServerAvailableTimes(availability, locationId, date) {
+    if (availability.loaded) {
+        const dayOfWeek = date.getDay();
+        const dateKey = toLocalDateKey(date);
+        const isBlocked = availability.blockedDates.some(blocked => (
+            blocked.blocked_date === dateKey
+            && (!blocked.location_id || blocked.location_id === locationId)
+        ));
+        if (isBlocked) return [];
+
+        return [...new Set(availability.timeSlots
+            .filter(slot => slot.location_id === locationId && Number(slot.day_of_week) === dayOfWeek)
+            .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+            .map(slot => cleanText(slot.time_label, 40))
+            .filter(Boolean))];
+    }
+
+    return fallbackTimesForLocation(locationId, date);
+}
+
+async function canonicalizeFulfilment(order) {
+    const fulfilment = cleanText(order.fulfilment, 20);
+    assertCheckout(fulfilment === 'meetup' || fulfilment === 'delivery', 'Invalid fulfilment method.');
+
+    if (fulfilment === 'delivery') {
+        const source = asPlainObject(order.delivery);
+        assertCheckout(source, 'Delivery details are required.');
+
+        const delivery = {
+            postal: cleanText(source.postal, 20),
+            street: cleanText(source.street, 160),
+            block: cleanText(source.block, 40),
+            floor: cleanText(source.floor, 20),
+            unit: cleanText(source.unit, 20),
+            building: cleanText(source.building, 160),
+            notes: cleanText(source.notes, 500)
+        };
+        assertCheckout(delivery.postal && delivery.street, 'Postal code and street are required for delivery.');
+        delivery.addressSummary = getDeliveryAddressSummary(delivery);
+        delivery.summary = cleanText(source.summary || delivery.addressSummary, 500);
+        return { fulfilment, meetup: null, delivery };
+    }
+
+    const source = asPlainObject(order.meetup);
+    assertCheckout(source, 'Meetup details are required.');
+
+    const locationId = cleanText(source.locationId || source.location_id, 80);
+    const configuredLocation = getConfiguredMeetupLocation(locationId);
+    assertCheckout(configuredLocation, 'Unknown meetup location.');
+
+    const date = parseCheckoutDateText(source.date);
+    assertCheckout(date >= getEarliestCheckoutDate(), 'Meetup date must be at least 7 days from today.');
+
+    const time = cleanText(source.time, 40);
+    const availability = await getCheckoutAvailabilityForServer();
+    const availableTimes = getServerAvailableTimes(availability, locationId, date);
+    assertCheckout(availableTimes.includes(time), 'Selected meetup time is no longer available.');
+
+    const meetup = {
+        date: cleanText(source.date, 40),
+        time,
+        locationId,
+        location: cleanText(configuredLocation.name || source.location || locationId, 160),
+        locationSub: cleanText(configuredLocation.sub || source.locationSub || '', 160)
+    };
+    meetup.summary = `${meetup.location}: ${meetup.date} | ${meetup.time}`;
+    return { fulfilment, meetup, delivery: null };
+}
+
+async function getActivePromoForServer(code) {
+    const normalized = normalizePromoCode(code);
+    if (!normalized) return null;
+
+    const data = await callSupabaseRpc('get_active_promo_code', { p_code: normalized });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) return null;
+
+    return {
+        code: cleanText(row.code || normalized, 80),
+        label: cleanText(row.label || normalized, 120),
+        type: cleanText(row.discount_type, 20),
+        value: moneyOrZero(row.discount_value)
+    };
+}
+
+function calculateCheckoutDiscount(subtotal, promo) {
+    if (!promo) return 0;
+    const rawDiscount = promo.type === 'percent'
+        ? subtotal * Math.max(0, promo.value) / 100
+        : Math.max(0, promo.value);
+    return roundMoney(Math.min(subtotal, rawDiscount));
+}
+
+async function canonicalizeTotals(order, fulfilment, items) {
+    const clientTotals = asPlainObject(order.totals) || {};
+    const subtotal = roundMoney(items.reduce((sum, item) => sum + item.lineTotal, 0));
+    const shipping = roundMoney(fulfilment === 'delivery'
+        ? moneyOrZero(COMMERCE_CONFIG.deliveryShippingPrice)
+        : moneyOrZero(COMMERCE_CONFIG.meetupShippingPrice));
+
+    const promoCode = normalizePromoCode(clientTotals.promoCode);
+    const promo = await getActivePromoForServer(promoCode);
+    assertCheckout(!promoCode || promo, 'Promo code is not valid.');
+
+    const discount = calculateCheckoutDiscount(subtotal, promo);
+    const total = roundMoney(Math.max(0, subtotal + shipping - discount));
+
+    assertMoneyMatches('Subtotal', clientTotals.subtotal, subtotal);
+    assertMoneyMatches('Shipping', clientTotals.shipping, shipping);
+    assertMoneyMatches('Discount', clientTotals.discount, discount);
+    assertMoneyMatches('Total', clientTotals.total, total);
+
+    return {
+        subtotal,
+        shipping,
+        discount,
+        promoCode: promo ? promo.code : '',
+        promoLabel: promo ? promo.label : '',
+        total
+    };
+}
+
+function sanitizeStoragePath(value) {
+    const storagePath = String(value || '').trim().replace(/\\/g, '/');
+    assertCheckout(storagePath.length >= 8 && storagePath.length <= 240, 'Invalid uploaded file path.');
+    assertCheckout(!storagePath.split('/').some(part => part === '..' || part === ''), 'Invalid uploaded file path.');
+    return storagePath;
+}
+
+function getOrderStorageBucket(orderId) {
+    return sanitizeStorageName(orderId).toLowerCase().replace(/_/g, '-');
+}
+
+function getStorageSubfolderForRole(fileRole) {
+    return fileRole === 'payment_proof' ? 'payment' : 'design';
+}
+
+function createStoragePath(file) {
+    const safeName = sanitizeStorageName(file.originalName || `${file.fileRole}.bin`);
+    const safeItem = file.itemId ? `${sanitizeStorageName(file.itemId)}-` : '';
+    const safePart = file.partKey ? `${sanitizeStorageName(file.partKey)}-` : '';
+    const unique = crypto.randomBytes(8).toString('hex');
+    return `${getStorageSubfolderForRole(file.fileRole)}/${file.fileRole}-${Date.now()}-${unique}-${safeItem}${safePart}${safeName}`;
+}
+
+function detectImageContentType(buffer) {
+    if (!Buffer.isBuffer(buffer) || buffer.length < 4) return '';
+
+    if (
+        buffer.length >= 8
+        && buffer[0] === 0x89
+        && buffer[1] === 0x50
+        && buffer[2] === 0x4e
+        && buffer[3] === 0x47
+        && buffer[4] === 0x0d
+        && buffer[5] === 0x0a
+        && buffer[6] === 0x1a
+        && buffer[7] === 0x0a
+    ) {
+        return 'image/png';
+    }
+
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+        return 'image/jpeg';
+    }
+
+    if (
+        buffer.length >= 6
+        && buffer[0] === 0x47
+        && buffer[1] === 0x49
+        && buffer[2] === 0x46
+        && buffer[3] === 0x38
+        && (buffer[4] === 0x37 || buffer[4] === 0x39)
+        && buffer[5] === 0x61
+    ) {
+        return 'image/gif';
+    }
+
+    if (
+        buffer.length >= 12
+        && buffer.slice(0, 4).toString('ascii') === 'RIFF'
+        && buffer.slice(8, 12).toString('ascii') === 'WEBP'
+    ) {
+        return 'image/webp';
+    }
+
+    return '';
+}
+
+function normalizeClientUploadFile(file, uploadedFiles) {
+    const source = asPlainObject(file);
+    assertCheckout(source, 'Invalid uploaded file metadata.');
+
+    const fileRole = cleanText(source.fileRole || source.file_role, 40).replace(/-/g, '_');
+    assertCheckout(fileRole === 'design_upload' || fileRole === 'payment_proof', 'Invalid uploaded file role.');
+
+    const fieldName = cleanText(source.fieldName || source.field_name, 80);
+    assertCheckout(/^[a-z0-9._-]{1,80}$/i.test(fieldName), 'Invalid uploaded file field.');
+    const upload = uploadedFiles.get(fieldName);
+    assertCheckout(upload, 'Uploaded file is missing.');
+
+    const size = Number(source.size ?? source.size_bytes);
+    assertCheckout(!Number.isFinite(size) || (size >= 0 && size <= CHECKOUT_UPLOAD_MAX_BYTES), 'Uploaded file is too large.');
+    assertCheckout(upload.buffer.length <= CHECKOUT_UPLOAD_MAX_BYTES, 'Uploaded file is too large.');
+    assertCheckout(!Number.isFinite(size) || upload.buffer.length === Math.round(size), 'Uploaded file size does not match metadata.');
+
+    const contentType = cleanText(upload.contentType || source.contentType || source.content_type, 120).toLowerCase();
+    assertCheckout(contentType.startsWith('image/'), 'Uploaded payment/design files must be images.');
+    const detectedContentType = detectImageContentType(upload.buffer);
+    assertCheckout(detectedContentType, 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
+    assertCheckout(contentType === detectedContentType || (contentType === 'image/jpg' && detectedContentType === 'image/jpeg'), 'Uploaded file type does not match its contents.');
+
+    const originalName = cleanOptionalText(source.originalName || source.original_name || upload.originalName, 240);
+
+    return {
+        itemId: cleanOptionalText(source.itemId || source.item_id, 120),
+        partKey: cleanOptionalText(source.partKey || source.part_key, 40),
+        fileRole,
+        bucket: '',
+        storagePath: '',
+        originalName,
+        contentType,
+        size: upload.buffer.length,
+        buffer: upload.buffer
+    };
+}
+
+function assertDesignFileMatchesItem(file, itemsById) {
+    assertCheckout(file.itemId, 'Design upload is missing an item id.');
+    const item = itemsById.get(file.itemId);
+    assertCheckout(item, 'Design upload points to an unknown item.');
+    assertCheckout(CHECKOUT_DESIGN_PART_KEYS.has(file.partKey), 'Design upload has an invalid part.');
+    assertCheckout(item.addOns.some(addOn => addOn.partKey === file.partKey), 'Design upload does not match a paid design add-on.');
+}
+
+function encodeSupabaseStoragePath(storagePath) {
+    return storagePath.split('/').map(part => encodeURIComponent(part)).join('/');
+}
+
+async function canonicalizeCheckoutFiles(orderId, rawFiles, uploadedFiles, items, rawPayment) {
+    assertCheckout(Array.isArray(rawFiles), 'Uploaded file metadata is required.');
+    assertCheckout(uploadedFiles instanceof Map, 'Uploaded file data is required.');
+    const files = rawFiles.map(file => normalizeClientUploadFile(file, uploadedFiles));
+    const expectedBucket = getOrderStorageBucket(orderId);
+    const itemsById = new Map(items.map(item => [item.id, item]));
+
+    for (const file of files) {
+        if (file.fileRole === 'design_upload') assertDesignFileMatchesItem(file, itemsById);
+        file.bucket = expectedBucket;
+        file.storagePath = sanitizeStoragePath(createStoragePath(file));
+    }
+
+    const paymentFiles = files.filter(file => file.fileRole === 'payment_proof');
+    assertCheckout(paymentFiles.length === 1, 'Exactly one payment proof image is required.');
+
+    const paymentSource = asPlainObject(rawPayment);
+    const paymentFile = paymentFiles[0];
+    const payment = {
+        method: 'PayNow',
+        status: 'pending_payment_review',
+        screenshotName: cleanText(paymentFile.originalName || paymentSource?.screenshotName || 'payment-proof', 240),
+        screenshotSource: cleanText(paymentSource?.screenshotSource || 'upload', 40),
+        screenshotPath: paymentFile.storagePath,
+        screenshotBucket: paymentFile.bucket
+    };
+
+    const fileRows = files.map(file => ({
+        order_id: orderId,
+        item_id: file.itemId,
+        part_key: file.partKey,
+        file_role: file.fileRole,
+        bucket: file.bucket,
+        storage_path: file.storagePath,
+        original_name: file.originalName,
+        content_type: file.contentType,
+        size_bytes: file.size
+    }));
+
+    const storageFiles = files.map(file => ({
+        bucket: file.bucket,
+        storagePath: file.storagePath,
+        originalName: file.originalName,
+        contentType: file.contentType,
+        buffer: file.buffer
+    }));
+
+    return { payment, fileRows, storageFiles };
+}
+
+async function buildCheckoutOrderRecords(payload) {
+    const order = asPlainObject(payload.order || payload);
+    assertCheckout(order, 'Missing order payload.');
+
+    const orderId = cleanText(order.orderId || order.id, 140);
+    assertCheckout(/^order-[a-z0-9][a-z0-9-]{8,119}$/.test(orderId), 'Invalid order id.');
+
+    const customer = canonicalizeCustomer(order);
+    const fulfilmentDetails = await canonicalizeFulfilment(order);
+    const items = canonicalizeCheckoutItems(order.items);
+    const totals = await canonicalizeTotals(order, fulfilmentDetails.fulfilment, items);
+    const rawFiles = payload.fileMetadata || payload.files || order.files || [];
+    const uploadedFiles = payload.uploadedFiles || new Map();
+    const { payment, fileRows, storageFiles } = await canonicalizeCheckoutFiles(orderId, rawFiles, uploadedFiles, items, order.payment);
+
+    return {
+        orderRecord: {
+            id: orderId,
+            customer_name: customer.name,
+            customer_email: customer.email,
+            customer_phone: customer.phone,
+            customer_telegram: customer.telegram,
+            fulfilment: fulfilmentDetails.fulfilment,
+            meetup: fulfilmentDetails.meetup,
+            delivery: fulfilmentDetails.delivery,
+            items,
+            totals,
+            payment,
+            status: 'new'
+        },
+        storageFiles,
+        fileRows,
+        response: {
+            orderId,
+            totals,
+            paymentStatus: payment.status,
+            fileCount: fileRows.length
+        }
+    };
+}
+
+async function insertCheckoutOrder(payload) {
+    const records = await buildCheckoutOrderRecords(payload);
+    await uploadCheckoutStorageFiles(records.storageFiles);
+    let orderInserted = false;
+
+    try {
+        await requestSupabaseJson('POST', '/rest/v1/orders', records.orderRecord);
+        orderInserted = true;
+
+        if (records.fileRows.length) {
+            await requestSupabaseJson('POST', '/rest/v1/order_files', records.fileRows);
+        }
+    } catch (error) {
+        if (orderInserted) {
+            await requestSupabaseJson('DELETE', `/rest/v1/orders?id=eq.${encodeURIComponent(records.orderRecord.id)}`).catch(deleteError => {
+                console.warn(`Could not delete partial checkout order ${records.orderRecord.id}: ${deleteError.message}`);
+            });
+        }
+        await deleteCheckoutStorageFiles(records.storageFiles);
+        await deleteCheckoutStorageBuckets(records.storageFiles);
+        throw error;
+    }
+
+    return records.response;
+}
+
+async function handleCheckoutOrder(req, res) {
+    if (!isCheckoutOriginAllowed(getRequestOrigin(req), req)) {
+        sendError(req, res, 403, 'Checkout origin is not allowed.');
+        return;
+    }
+
+    try {
+        const payload = await readCheckoutPayload(req);
+        const result = await insertCheckoutOrder(payload);
+        sendJson(req, res, 201, { ok: true, ...result });
+    } catch (error) {
+        if (error instanceof CheckoutValidationError) {
+            sendError(req, res, error.statusCode, error.message);
+            return;
+        }
+
+        console.error(error);
+        sendError(req, res, 500, 'Checkout submission failed.');
+    }
+}
+
 async function handleOrderNotification(req, res) {
     if (!ORDER_NOTIFICATION_SECRET) {
         sendError(req, res, 503, 'Order notifications are not configured.');
@@ -1016,6 +2062,14 @@ async function handleTelegramWebhook(req, res) {
 
 async function handleNotificationTest(req, res) {
     if (!requireAdminAccess(req, res)) return;
+    if (req.method !== 'POST') {
+        sendError(req, res, 405, 'Method not allowed.');
+        return;
+    }
+    if (!isSameOriginRequest(req)) {
+        sendError(req, res, 403, 'Admin action origin is not allowed.');
+        return;
+    }
 
     const sampleOrder = {
         id: `order-notification-test-${Date.now()}`,
@@ -1045,6 +2099,14 @@ async function handleNotificationTest(req, res) {
 
 async function handleFileNotificationTest(req, res) {
     if (!requireAdminAccess(req, res)) return;
+    if (req.method !== 'POST') {
+        sendError(req, res, 405, 'Method not allowed.');
+        return;
+    }
+    if (!isSameOriginRequest(req)) {
+        sendError(req, res, 403, 'Admin action origin is not allowed.');
+        return;
+    }
 
     const sampleFile = {
         order_id: 'order-file-notification-test',
@@ -1216,13 +2278,16 @@ function runPreflightChecks(req) {
     const requiredFiles = [
         'index.html',
         'configurator.html',
-        'admin.html',
+        'admin/index.html',
+        'admin/admin.css',
+        'admin/admin.js',
         'site-config.js',
         'script.js',
         'server.js',
-        'supabase-setup.sql'
+        'database/supabase-setup.sql'
     ];
     const checks = [];
+    const localDevelopment = isLocalDevelopment(req);
 
     requiredFiles.forEach(file => {
         checks.push({
@@ -1239,24 +2304,64 @@ function runPreflightChecks(req) {
     });
 
     checks.push({
+        name: 'admin_ip_allowlist_configured',
+        ok: localDevelopment || ADMIN_ALLOWED_IPS.size > 0,
+        severity: 'warning',
+        detail: localDevelopment
+            ? 'Skipped for localhost development.'
+            : 'Set ADMIN_ALLOWED_IPS in production to restrict Basic auth attempts.'
+    });
+
+    checks.push({
         name: 'persistent_logs_enabled',
         ok: LOG_TO_FILE,
         severity: 'warning'
     });
 
     checks.push({
+        name: 'notification_channel_configured',
+        ok: Boolean((SMTP_HOST && SMTP_FROM) || (TELEGRAM_BOT_TOKEN && TELEGRAM_ADMIN_CHAT_ID)),
+        severity: 'warning',
+        detail: SMTP_HOST && SMTP_FROM
+            ? 'Email notification channel is configured.'
+            : TELEGRAM_BOT_TOKEN && TELEGRAM_ADMIN_CHAT_ID
+                ? 'Telegram notification channel is configured; SMTP email is optional.'
+                : 'Configure SMTP or Telegram notifications before taking live orders.'
+    });
+
+    checks.push({
         name: 'https_ready',
-        ok: isHttpsRequest(req)
+        ok: localDevelopment
+            || isHttpsRequest(req)
             || REQUIRE_HTTPS
             || Boolean(HTTPS_KEY_PATH && HTTPS_CERT_PATH)
             || PUBLIC_BASE_URL.startsWith('https://'),
-        severity: 'warning'
+        severity: 'warning',
+        detail: localDevelopment ? 'Skipped for localhost development.' : 'Use HTTPS in production.'
     });
 
     checks.push({
         name: 'trust_proxy_when_using_forwarded_https',
         ok: !String(req.headers['x-forwarded-proto'] || '') || TRUST_PROXY,
         severity: 'warning'
+    });
+
+    checks.push({
+        name: 'checkout_origin_allowlist_configured',
+        ok: localDevelopment || CHECKOUT_ALLOWED_ORIGINS.size > 0,
+        severity: 'warning',
+        detail: localDevelopment
+            ? 'Skipped for localhost development.'
+            : 'Set CHECKOUT_ALLOWED_ORIGINS to the exact public site origins that may submit checkout orders.'
+    });
+
+    checks.push({
+        name: 'csp_without_inline_script',
+        ok: localDevelopment,
+        severity: 'warning',
+        detail: localDevelopment
+            ? 'Skipped for localhost development.'
+            : 'Current UI uses inline scripts/handlers, so CSP still includes unsafe-inline.'
     });
 
     const failures = checks.filter(check => !check.ok);
@@ -1303,7 +2408,10 @@ function handleRequest(req, res) {
         || isAdminFile(normalizeRequestPath(url.pathname) || '');
     const isPostApiRoute = url.pathname === '/api/order-notification'
         || url.pathname === '/api/order-file-notification'
-        || url.pathname === '/api/telegram/webhook';
+        || url.pathname === '/api/telegram/webhook'
+        || url.pathname === '/api/checkout/orders'
+        || url.pathname === '/api/admin/test-notification'
+        || url.pathname === '/api/admin/test-file-notification';
 
     pruneRateBuckets();
 
@@ -1349,6 +2457,11 @@ function handleRequest(req, res) {
         return;
     }
 
+    if (url.pathname === '/api/checkout/orders') {
+        handleCheckoutOrder(req, res);
+        return;
+    }
+
     if (url.pathname === '/api/admin/requests') {
         handleRequestLog(req, res, url);
         return;
@@ -1365,11 +2478,19 @@ function handleRequest(req, res) {
     }
 
     if (url.pathname === '/api/admin/test-notification') {
+        if (req.method !== 'POST') {
+            sendError(req, res, 405, 'Method not allowed.');
+            return;
+        }
         handleNotificationTest(req, res);
         return;
     }
 
     if (url.pathname === '/api/admin/test-file-notification') {
+        if (req.method !== 'POST') {
+            sendError(req, res, 405, 'Method not allowed.');
+            return;
+        }
         handleFileNotificationTest(req, res);
         return;
     }

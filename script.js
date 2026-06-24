@@ -127,6 +127,7 @@ const holderNumberColorStartY = 15.1; // Adjust this number (in mm) to match the
 const glbModels = {
     guitar: {
         body: "GLB/(Guitar) body.glb",
+        checkoutPreview: "GLB/Guitar body Preview for checkout.glb",
         module: "GLB/(Guitar) Pick Holder Module.glb",
         slider: "GLB/Slider for both.glb",
         top: "GLB/(Guitar) Top Plate.glb",
@@ -140,6 +141,7 @@ const glbModels = {
     },
     bass: {
         body: "GLB/(Bass) Body.glb",
+        checkoutPreview: "GLB/Bass body Preview for checkout.glb",
         module: "GLB/(Bass) Pick Holder Module.glb",
         slider: "GLB/Slider for both.glb",
         top: "GLB/(Bass) Top Plate.glb",
@@ -402,6 +404,7 @@ function restoreCartFromStorage() {
 // 3D SCENE CONFIGURATION
 let scene, camera, renderer, controls, assemblyGroup;
 const modelCache = {};
+const rawModelCache = {};
 const designTextureCache = {};
 
 // Arrays to store the 4 miniature engines inside the slot cards
@@ -734,6 +737,23 @@ function loadGlbModel(file, manager, onLoad, onError) {
     }, undefined, onError);
 }
 
+function loadRawGlbModel(file, manager, onLoad, onError) {
+    const cacheKey = `raw:${file}`;
+    if (rawModelCache[cacheKey]) {
+        if (manager) manager.itemStart(file);
+        onLoad(cloneCachedModel(rawModelCache[cacheKey]));
+        if (manager) manager.itemEnd(file);
+        return;
+    }
+
+    const loader = manager ? new THREE.GLTFLoader(manager) : new THREE.GLTFLoader();
+    loader.load(file, (gltf) => {
+        const model = gltf.scene || gltf.scenes[0];
+        rawModelCache[cacheKey] = model;
+        onLoad(cloneCachedModel(model));
+    }, undefined, onError);
+}
+
 function clearScene() {
     if (!assemblyGroup) return;
     // Deep memory disposal to prevent mixed pieces sticking around
@@ -749,6 +769,131 @@ function loadPart(file, mat, manager = null, slotIndex = null) {
     loadGlbModel(file, manager, (model) => {
         assemblyGroup.add(addPreparedModel(model, mat, slotIndex));
     }, () => console.log("Missing model file: " + file));
+}
+
+function getObjectNamePath(object) {
+    const names = [];
+    let node = object;
+    while (node) {
+        if (node.name) names.push(node.name);
+        node = node.parent;
+    }
+    return names.join(' ');
+}
+
+function normalizeModelName(name) {
+    return String(name || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function getNamedPartMaterial(name, source = selections) {
+    const normalized = normalizeModelName(name);
+    if (normalized.includes('body')) return getMat(source.body);
+    if (normalized.includes('module')) return getMat(source.module);
+    if (normalized.includes('slider')) return getSnapshotPartMat(source, 'slider');
+    if (normalized.includes('top plate')) return getSnapshotPartMat(source, 'top');
+    if (normalized.includes('base plate')) return getSnapshotPartMat(source, 'bottom');
+    return null;
+}
+
+function getCheckoutHolderSlotIndex(name) {
+    const match = normalizeModelName(name).match(/pick\s*holder\s*(\d)/i);
+    if (!match) return null;
+
+    const slotIndex = Number(match[1]) - 1;
+    return slotIndex >= 0 && slotIndex <= 3 ? slotIndex : null;
+}
+
+function getObjectBounds(object) {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    return { box, center, size };
+}
+
+function prepareCheckoutPreviewBase(model, source = selections) {
+    const placeholders = [];
+    model.updateMatrixWorld(true);
+
+    model.traverse((child) => {
+        if (!child.isMesh) return;
+        const label = getObjectNamePath(child);
+
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        const slotIndex = getCheckoutHolderSlotIndex(label);
+        if (slotIndex !== null) {
+            const bounds = getObjectBounds(child);
+            if (bounds) placeholders.push({ slotIndex, center: bounds.center.clone(), size: bounds.size.clone() });
+            child.visible = false;
+            return;
+        }
+
+        const mat = getNamedPartMaterial(label, source);
+        if (mat) {
+            child.material = mat.userData?.split
+                ? getMat(mat.userData.c1, mat.userData.c2, true)
+                : mat.clone();
+        }
+    });
+
+    const modelBounds = getObjectBounds(model);
+    const offset = modelBounds ? modelBounds.center.clone() : new THREE.Vector3();
+    model.position.sub(offset);
+    placeholders.forEach((placeholder) => placeholder.center.sub(offset));
+
+    model.rotation.x = Math.PI / 248;
+    model.rotation.y = 0;
+    model.updateMatrixWorld(true);
+
+    return placeholders;
+}
+
+function addCheckoutHolderReplacement(file, mat, placeholder, manager, targetGroup = assemblyGroup, onPartAdded = null) {
+    loadRawGlbModel(file, manager, (model) => {
+        applyMaterialToModel(model, mat);
+        const bounds = getObjectBounds(model);
+        if (!bounds) return;
+
+        model.position.add(placeholder.center.clone().sub(bounds.center));
+        model.rotation.x = Math.PI / 248;
+        model.rotation.y = 0;
+        targetGroup.add(model);
+        if (onPartAdded) onPartAdded(model);
+    }, () => console.log("Missing model file: " + file));
+}
+
+function loadCheckoutPreviewAssembly(activeSet, loadingManager, source = selections, targetGroup = assemblyGroup, onPartAdded = null) {
+    if (!activeSet.checkoutPreview) return false;
+
+    loadRawGlbModel(activeSet.checkoutPreview, loadingManager, (model) => {
+        const placeholders = prepareCheckoutPreviewBase(model, source);
+        targetGroup.add(model);
+        if (onPartAdded) onPartAdded(model);
+
+        placeholders.forEach((placeholder) => {
+            const holder = source.holders[placeholder.slotIndex];
+            if (!holder || holder.t === 'Empty') return;
+
+            const holderFile = activeSet.holders[holder.t];
+            if (!holderFile) return;
+
+            addCheckoutHolderReplacement(
+                holderFile,
+                getMat(holder.c1, holder.c2, true),
+                placeholder,
+                loadingManager,
+                targetGroup,
+                onPartAdded
+            );
+        });
+    }, () => {
+        console.log("Missing model file: " + activeSet.checkoutPreview);
+    });
+
+    return true;
 }
 
 // PAGE NAVIGATION AND STATE RENDERING
@@ -833,17 +978,19 @@ function render() {
             statusElement.style.display = 'none';
         };
 
-        loadPart(activeSet.body, getMat(selections.body), loadingManager);
-        loadPart(activeSet.module, getMat(selections.module), loadingManager);
-        loadPart(activeSet.slider, getPartMat('slider'), loadingManager);
-        loadPart(activeSet.top, getPartMat('top'), loadingManager);
-        loadPart(activeSet.bottom, getPartMat('bottom'), loadingManager);
+        if (!loadCheckoutPreviewAssembly(activeSet, loadingManager)) {
+            loadPart(activeSet.body, getMat(selections.body), loadingManager);
+            loadPart(activeSet.module, getMat(selections.module), loadingManager);
+            loadPart(activeSet.slider, getPartMat('slider'), loadingManager);
+            loadPart(activeSet.top, getPartMat('top'), loadingManager);
+            loadPart(activeSet.bottom, getPartMat('bottom'), loadingManager);
 
-        for (let i = 0; i < 4; i++) {
-            const size = selections.holders[i].t;
-            if (size !== 'Empty') {
-                const holderFile = activeSet.holders[size];
-                loadPart(holderFile, getMat(selections.holders[i].c1, selections.holders[i].c2, true), loadingManager, i);
+            for (let i = 0; i < 4; i++) {
+                const size = selections.holders[i].t;
+                if (size !== 'Empty') {
+                    const holderFile = activeSet.holders[size];
+                    loadPart(holderFile, getMat(selections.holders[i].c1, selections.holders[i].c2, true), loadingManager, i);
+                }
             }
         }
         buildBreakdown();
@@ -1106,6 +1253,10 @@ function getCheckoutText(key, fallback) {
 
 function getCommerceConfig() {
     return APP_CONFIG.commerce || {};
+}
+
+function shouldLogOptionalSupabaseWarnings() {
+    return getCommerceConfig().quietOptionalSupabaseWarnings === false;
 }
 
 function formatCheckoutMoney(amount) {
@@ -1513,7 +1664,9 @@ async function loadManagedCheckoutSettings() {
 
         if (activeView === 'checkout') buildCheckout();
     } catch (error) {
-        console.warn('Could not load managed checkout settings; using local config fallback', error);
+        if (shouldLogOptionalSupabaseWarnings()) {
+            console.warn('Could not load managed checkout settings; using local config fallback', error);
+        }
     }
 }
 
@@ -1653,8 +1806,10 @@ function buildCheckout() {
     mountVisibleCheckoutPreviews();
 }
 
-function mountCheckoutPreview(item, containerId) {
-    const container = document.getElementById(containerId);
+function mountCheckoutPreview(item, containerTarget) {
+    const container = typeof containerTarget === 'string'
+        ? document.getElementById(containerTarget)
+        : containerTarget;
     if (!container || !item) return;
 
     container.innerHTML = '';
@@ -1666,7 +1821,7 @@ function mountCheckoutPreview(item, containerId) {
                 previewType: item.previewType || product.previewType,
                 previewColor: item.holder?.c1 || item.partColor || product.previewColor,
                 previewNumberColor: item.holder?.c2 || product.previewNumberColor
-            }, containerId, item.name);
+            }, container.id, item.name);
             return;
         }
 
@@ -1674,20 +1829,25 @@ function mountCheckoutPreview(item, containerId) {
         return;
     }
 
+    if (!window.THREE) {
+        container.textContent = item.name?.charAt(0) || 'P';
+        return;
+    }
+
     const width = container.clientWidth || 96;
     const height = container.clientHeight || 96;
+    const previewZoom = container.classList.contains('checkout-product-preview-small') ? 1.9 : 1.65;
     const previewScene = new THREE.Scene();
     const previewCamera = new THREE.PerspectiveCamera(38, width / height, 0.1, 1000);
-    previewCamera.position.set(0, 0, 120);
 
     const previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     previewRenderer.setSize(width, height);
-    previewRenderer.setPixelRatio(window.devicePixelRatio);
+    previewRenderer.setPixelRatio(window.devicePixelRatio || 1);
     container.appendChild(previewRenderer.domElement);
 
-    previewScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    previewScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.35));
     const previewLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    previewLight.position.set(5, 5, 5);
+    previewLight.position.set(5, 6, 8);
     previewScene.add(previewLight);
 
     const previewGroup = new THREE.Group();
@@ -1695,20 +1855,35 @@ function mountCheckoutPreview(item, containerId) {
 
     const snapshot = item.selections;
     const activeSet = glbModels[snapshot.type];
-    const addPreviewPart = (file, mat, slotIndex = null) => {
-        loadGlbModel(file, null, (model) => previewGroup.add(addPreparedModel(model, mat, slotIndex)), () => {});
+    if (!activeSet) {
+        container.textContent = item.name?.charAt(0) || 'P';
+        return;
+    }
+
+    const fitConfiguredPreview = () => {
+        previewGroup.updateMatrixWorld(true);
+        fitPreviewCameraToObject(previewGroup, previewCamera, previewZoom);
     };
 
-    addPreviewPart(activeSet.body, getMat(snapshot.body));
-    addPreviewPart(activeSet.module, getMat(snapshot.module));
-    addPreviewPart(activeSet.slider, getSnapshotPartMat(snapshot, 'slider'));
-    addPreviewPart(activeSet.top, getSnapshotPartMat(snapshot, 'top'));
-    addPreviewPart(activeSet.bottom, getSnapshotPartMat(snapshot, 'bottom'));
-    snapshot.holders.forEach((holder, index) => {
-        if (holder.t !== 'Empty') {
-            addPreviewPart(activeSet.holders[holder.t], getMat(holder.c1, holder.c2, true), index);
-        }
-    });
+    if (!loadCheckoutPreviewAssembly(activeSet, null, snapshot, previewGroup, fitConfiguredPreview)) {
+        const addPreviewPart = (file, mat, slotIndex = null) => {
+            loadGlbModel(file, null, (model) => {
+                previewGroup.add(addPreparedModel(model, mat, slotIndex));
+                fitConfiguredPreview();
+            }, () => {});
+        };
+
+        addPreviewPart(activeSet.body, getMat(snapshot.body));
+        addPreviewPart(activeSet.module, getMat(snapshot.module));
+        addPreviewPart(activeSet.slider, getSnapshotPartMat(snapshot, 'slider'));
+        addPreviewPart(activeSet.top, getSnapshotPartMat(snapshot, 'top'));
+        addPreviewPart(activeSet.bottom, getSnapshotPartMat(snapshot, 'bottom'));
+        snapshot.holders.forEach((holder, index) => {
+            if (holder.t !== 'Empty') {
+                addPreviewPart(activeSet.holders[holder.t], getMat(holder.c1, holder.c2, true), index);
+            }
+        });
+    }
 
     function animatePreview() {
         if (!container.isConnected) return;
@@ -1722,7 +1897,7 @@ function mountCheckoutPreview(item, containerId) {
 function mountVisibleCheckoutPreviews() {
     document.querySelectorAll('[data-checkout-preview-index]').forEach((container) => {
         const index = Number(container.dataset.checkoutPreviewIndex);
-        mountCheckoutPreview(checkoutState.cartItems[index], container.id);
+        mountCheckoutPreview(checkoutState.cartItems[index], container);
     });
 }
 
@@ -1810,6 +1985,7 @@ function renderCheckoutCartScreen() {
         <div class="checkout-flow-grid">
             <section class="checkout-main-panel">
                 <h2>${escapeHtml(getCheckoutText('cartTitle', 'Shopping Cart'))}</h2>
+                ${renderCheckoutTrustCard('cart')}
                 <div class="checkout-cart-header${hasItems ? '' : ' is-hidden'}">
                     <span>${escapeHtml(getCheckoutText('productHeader', 'Product'))}</span>
                     <span></span>
@@ -1827,6 +2003,7 @@ function renderCheckoutCartScreen() {
                     ${renderCheckoutMethod('meetup', getCheckoutText('meetupLabel', 'Meet-up'))}
                     ${renderCheckoutMethod('delivery', `${getCheckoutText('deliveryLabel', 'Delivery')} ${getCheckoutText('deliveryPriceLabel', '+$2.60')}`)}
                 </div>
+                ${renderCheckoutTrustList()}
                 <button class="checkout-submit" onclick="checkoutGoToDetails()">${escapeHtml(getCheckoutText('continueToDetails', 'Continue to Details →'))}</button>
             </aside>
         </div>`;
@@ -1846,6 +2023,7 @@ function renderCheckoutDetailsScreen() {
         <div class="checkout-flow-grid">
             <section class="checkout-main-panel">
                 <h2>${escapeHtml(getCheckoutText(isDelivery ? 'detailsDeliveryTitle' : 'detailsMeetupTitle', isDelivery ? 'Delivery Details' : 'Meet-up Details'))}</h2>
+                ${renderCheckoutTrustCard('details')}
                 ${renderCheckoutContactFields()}
                 ${isDelivery ? renderCheckoutDeliveryFields() : renderCheckoutMeetupFields()}
                 ${checkoutState.errors.details ? `<div class="checkout-message">${escapeHtml(checkoutState.errors.details)}</div>` : ''}
@@ -1854,8 +2032,8 @@ function renderCheckoutDetailsScreen() {
             <aside class="checkout-side-panel">
                 <h2>${escapeHtml(getCheckoutText('orderSummaryTitle', 'Your Order'))}</h2>
                 ${renderCheckoutFulfilmentDetails()}
-                ${renderCheckoutOrderSummary()}
-                <button class="checkout-submit" onclick="checkoutGoToPayment()">Continue to Payment →</button>
+                ${renderCheckoutOrderSummary('details')}
+                <button class="checkout-submit" onclick="checkoutGoToPayment()">${escapeHtml(getCheckoutText('continueToPayment', 'Continue to Payment →'))}</button>
             </aside>
         </div>`;
 }
@@ -2081,12 +2259,18 @@ function renderCheckoutFulfilmentDetails() {
 }
 
 function renderCheckoutPaymentScreen() {
+    if (checkoutState.confirmed) {
+        return renderCheckoutSuccessScreen();
+    }
+
     const location = getCheckoutLocation();
     const details = checkoutState.fulfilment === 'delivery'
         ? getDeliveryAddressSummary()
-        : `${escapeHtml(checkoutState.selectedDate || '')} · ${escapeHtml(checkoutState.selectedTime || '')} · ${escapeHtml(location ? location.name : '')}`;
+        : [checkoutState.selectedDate, checkoutState.selectedTime, location ? location.name : '']
+            .filter(Boolean)
+            .join(' · ');
 
-    const canConfirm = checkoutState.paymentScreenshotName && !checkoutState.isSubmitting && !checkoutState.confirmed;
+    const canConfirm = isUploadableFile(checkoutState.paymentScreenshotFile) && !checkoutState.isSubmitting && !checkoutState.confirmed;
 
     return `<div class="checkout-flow-grid">
         <section class="checkout-main-panel">
@@ -2094,9 +2278,9 @@ function renderCheckoutPaymentScreen() {
             <div class="checkout-fulfilment-badge">${escapeHtml(checkoutState.fulfilment === 'delivery' ? getCheckoutText('deliveryLabel', 'Delivery') : getCheckoutText('meetupLabel', 'Meet-up'))}</div>
             <p class="checkout-fulfilment-detail">${escapeHtml(details)}</p>
             ${renderCheckoutFulfilmentDetails()}
-            ${renderCheckoutOrderSummary()}
+            ${renderCheckoutOrderSummary('payment')}
             ${renderCheckoutPromoCode()}
-            ${checkoutState.confirmed ? `<div class="checkout-message success"><strong>${escapeHtml(getCheckoutText('successTitle', 'Order confirmed'))}</strong><span>${escapeHtml(getCheckoutText('successMessage', 'Thank you. We will contact you to confirm the details.'))}</span>${checkoutState.lastOrderId ? `<small>Order ID: ${escapeHtml(checkoutState.lastOrderId)}</small>` : ''}</div>` : ''}
+            ${renderCheckoutTrustCard('payment')}
             <button class="back-link" onclick="checkoutGoToDetails()">${escapeHtml(getCheckoutText('backToDetails', '‹ Back to Details'))}</button>
         </section>
         <aside class="checkout-paynow-panel">
@@ -2122,12 +2306,12 @@ function renderCheckoutPaymentScreen() {
     </div>`;
 }
 
-function renderCheckoutOrderSummary() {
+function renderCheckoutOrderSummary(scope = 'summary') {
     const items = checkoutState.cartItems.map((item, index) => {
         const unitPrice = getCartItemUnitPrice(item);
         return `
         <div class="checkout-summary-item">
-            <div class="checkout-product-preview checkout-product-preview-small" id="checkout-summary-preview-${index}" data-checkout-preview-index="${index}">P</div>
+            <div class="checkout-product-preview checkout-product-preview-small" id="checkout-${scope}-preview-${index}" data-checkout-preview-index="${index}">P</div>
             <div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)} ×${item.quantity}</p></div>
             <strong>${formatCheckoutMoney(unitPrice * item.quantity)}</strong>
         </div>`;
@@ -2146,6 +2330,68 @@ function renderCheckoutPromoCode() {
     </div>`;
 }
 
+function renderCheckoutTrustCard(stage = 'cart') {
+    const fallbackCards = {
+        cart: [
+            { label: 'Production', value: 'Custom orders need at least 7 days before meetup or delivery.' },
+            { label: 'Payment', value: 'PayNow confirmation is checked before the order is prepared.' },
+            { label: 'Contact', value: 'We use your contact details only for this order.' }
+        ],
+        details: [
+            { label: 'Meetup or delivery', value: 'Choose a valid date, time, and location before payment.' },
+            { label: 'Order updates', value: 'We will contact you using your email, phone, or Telegram handle.' },
+            { label: 'Privacy', value: 'Only the details needed to complete your order are collected.' }
+        ],
+        payment: [
+            { label: 'Before confirming', value: 'Pay the exact total shown and upload your bank screenshot.' },
+            { label: 'After confirming', value: 'Your order is saved and we will verify payment before making it.' },
+            { label: 'Keep your ID', value: 'Save the order ID shown after confirmation.' }
+        ]
+    };
+    const configuredCards = getCheckoutText('checkoutTrustCards', {});
+    const rows = Array.isArray(configuredCards[stage]) && configuredCards[stage].length
+        ? configuredCards[stage]
+        : (fallbackCards[stage] || fallbackCards.cart);
+
+    const safeRows = rows
+        .map(row => ({
+            label: row?.label || '',
+            value: row?.value || ''
+        }))
+        .filter(row => row.label || row.value);
+
+    return `<div class="checkout-trust-card">
+        ${safeRows.map(({ label, value }) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join('')}
+    </div>`;
+}
+
+function renderCheckoutTrustList() {
+    return `<div class="checkout-side-note">
+        <strong>${escapeHtml(getCheckoutText('checkoutTrustTitle', 'Good to know'))}</strong>
+        <span>${escapeHtml(getCheckoutText('checkoutTrustLeadTime', 'Orders open from 7 days ahead so there is time to prepare your design.'))}</span>
+        <span>${escapeHtml(getCheckoutText('checkoutTrustPayment', 'Payment proof is uploaded privately with your order.'))}</span>
+    </div>`;
+}
+
+function renderCheckoutSuccessScreen() {
+    const orderId = checkoutState.lastOrderId || '';
+    return `<section class="checkout-success-panel">
+        <span class="checkout-kicker">${escapeHtml(getCheckoutText('successKicker', 'Order received'))}</span>
+        <h2>${escapeHtml(getCheckoutText('successTitle', 'Order confirmed'))}</h2>
+        <p>${escapeHtml(getCheckoutText('successMessage', 'Thank you. We will contact you to confirm the details.'))}</p>
+        ${orderId ? `<div class="checkout-order-id"><span>${escapeHtml(getCheckoutText('successOrderIdLabel', 'Order ID'))}</span><strong>${escapeHtml(orderId)}</strong></div>` : ''}
+        <div class="checkout-next-steps">
+            <div><strong>1</strong><span>${escapeHtml(getCheckoutText('successStepPayment', 'We verify your PayNow screenshot.'))}</span></div>
+            <div><strong>2</strong><span>${escapeHtml(getCheckoutText('successStepConfirm', 'We contact you if any design or meetup detail needs confirmation.'))}</span></div>
+            <div><strong>3</strong><span>${escapeHtml(getCheckoutText('successStepPrepare', 'Your PopOutPick is prepared for the selected meetup or delivery option.'))}</span></div>
+        </div>
+        <div class="checkout-prompt-actions">
+            <button class="btn-nav" onclick="openShop()">${escapeHtml(getCheckoutText('continueShopping', 'Continue Shopping'))}</button>
+            <button class="btn-nav btn-next" onclick="restartCustomPopOutPick()">${escapeHtml(getCheckoutText('restartCustom', 'Restart Custom PopOutPick'))}</button>
+        </div>
+    </section>`;
+}
+
 function renderCheckoutTotals() {
     const shipping = getCheckoutShipping();
     const discount = getCheckoutDiscount();
@@ -2153,7 +2399,7 @@ function renderCheckoutTotals() {
 }
 
 function renderCheckoutQrImage() {
-    return `<img class="checkout-qr-image" src="PayNOW QR code.jpg" alt="PayNow QR code">`;
+    return `<img class="checkout-qr-image" src="Picture/PayNOW QR code.jpg" alt="PayNow QR code">`;
 }
 
 function getCartItemCount() {
@@ -2346,14 +2592,16 @@ function checkoutGoToPayment() {
     checkoutState.screen = 'payment';
     checkoutState.confirmed = false;
     checkoutState.paymentScreenshotName = '';
+    checkoutState.paymentScreenshotSource = '';
     checkoutState.paymentScreenshotFile = null;
     buildCheckout();
 }
 
 function checkoutSetPaymentScreenshot(name, source, file = null) {
-    checkoutState.paymentScreenshotName = name || '';
-    checkoutState.paymentScreenshotSource = name ? source : '';
-    checkoutState.paymentScreenshotFile = name ? file : null;
+    const validFile = isUploadableFile(file) && String(file.type || '').toLowerCase().startsWith('image/');
+    checkoutState.paymentScreenshotName = validFile ? (name || file.name || 'Payment screenshot') : '';
+    checkoutState.paymentScreenshotSource = validFile ? source : '';
+    checkoutState.paymentScreenshotFile = validFile ? file : null;
     buildCheckout();
 }
 
@@ -2452,7 +2700,7 @@ function buildOrderPayload() {
         },
         payment: {
             method: 'PayNow',
-            status: 'customer_confirmed_paid',
+            status: 'pending_payment_review',
             screenshotName: checkoutState.paymentScreenshotName,
             screenshotSource: checkoutState.paymentScreenshotSource
         }
@@ -2554,28 +2802,7 @@ function getStorageSubfolderForRole(fileRole) {
     return fileRole === 'payment-proof' ? 'payment' : 'design';
 }
 
-async function ensureOrderStorageBucket(client, bucket) {
-    const { error } = await client.rpc('ensure_order_storage_bucket', { p_bucket_id: bucket });
-    if (error) throw error;
-}
-
-async function ensureSupabaseFolder(client, bucket, folderPath) {
-    const placeholder = new Blob(['folder placeholder'], { type: 'text/plain' });
-    const { error } = await client.storage.from(bucket).upload(`${folderPath}/.keep`, placeholder, {
-        cacheControl: '3600',
-        upsert: false
-    });
-    if (error && String(error.statusCode) !== '409') throw error;
-}
-
-async function ensureOrderStorageFolders(client, bucket) {
-    await Promise.all([
-        ensureSupabaseFolder(client, bucket, 'design'),
-        ensureSupabaseFolder(client, bucket, 'payment')
-    ]);
-}
-
-async function uploadSupabaseFile(client, orderId, file, fileRole, itemId = '') {
+function createCheckoutFileUpload(file, fileRole, itemId = '', partKey = null, index = 0) {
     if (!file) return null;
     if (!isUploadableFile(file)) {
         throw new Error(`Invalid upload for ${fileRole}: expected a File or Blob.`);
@@ -2583,40 +2810,31 @@ async function uploadSupabaseFile(client, orderId, file, fileRole, itemId = '') 
 
     const fallbackName = `${fileRole}.${getExtensionFromMime(file.type)}`;
     const safeName = sanitizeStorageName(file.name || fallbackName);
-    const safeItem = itemId ? `${sanitizeStorageName(itemId)}-` : '';
-    const orderBucket = getOrderStorageBucket(orderId);
-    const subfolder = getStorageSubfolderForRole(fileRole);
-    const path = `${subfolder}/${fileRole}-${Date.now()}-${safeItem}${safeName}`;
-    const { data, error } = await client.storage.from(orderBucket).upload(path, file, {
-        cacheControl: '3600',
-        upsert: false
-    });
-    if (error) throw error;
     return {
-        bucket: orderBucket,
-        path: data.path,
-        originalName: file.name || safeName,
-        contentType: file.type || 'application/octet-stream',
-        size: file.size || null
+        file,
+        metadata: {
+            fieldName: `file-${index}`,
+            fileRole: fileRole === 'payment-proof' ? 'payment_proof' : 'design_upload',
+            itemId: itemId || null,
+            partKey: partKey || null,
+            originalName: file.name || safeName,
+            contentType: file.type || 'application/octet-stream',
+            size: file.size || null
+        }
     };
 }
 
-async function uploadOrderFilesToSupabase(client, payload) {
+function collectCheckoutFilesForApi() {
     const files = [];
-    const orderBucket = getOrderStorageBucket(payload.orderId);
-    await ensureOrderStorageBucket(client, orderBucket);
-    await ensureOrderStorageFolders(client, orderBucket);
 
     if (checkoutState.paymentScreenshotFile) {
-        const uploaded = await uploadSupabaseFile(
-            client,
-            payload.orderId,
+        files.push(createCheckoutFileUpload(
             checkoutState.paymentScreenshotFile,
-            'payment-proof'
-        );
-        files.push({ ...uploaded, fileRole: 'payment_proof', itemId: null, partKey: null });
-        payload.payment.screenshotPath = uploaded.path;
-        payload.payment.screenshotBucket = uploaded.bucket;
+            'payment-proof',
+            '',
+            null,
+            files.length
+        ));
     }
 
     for (const item of checkoutState.cartItems) {
@@ -2628,62 +2846,68 @@ async function uploadOrderFilesToSupabase(client, payload) {
             const file = getFileForItemDesign(item, partKey);
             if (!file) continue;
 
-            const uploaded = await uploadSupabaseFile(
-                client,
-                payload.orderId,
+            files.push(createCheckoutFileUpload(
                 file,
                 'design-upload',
-                `${item.id}-${partKey}`
-            );
-            files.push({ ...uploaded, fileRole: 'design_upload', itemId: item.id, partKey });
+                item.id,
+                partKey,
+                files.length
+            ));
         }
     }
 
-    return files;
+    return files.filter(Boolean);
+}
+
+function getCheckoutApiUrl() {
+    const configuredUrl = String(getCommerceConfig().checkoutApiUrl || '').trim();
+    if (configuredUrl) return configuredUrl;
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        return `${window.location.origin}/api/checkout/orders`;
+    }
+    return '';
+}
+
+function normalizeUploadedOrderFile(file) {
+    return file.metadata;
+}
+
+async function submitCheckoutOrderToApi(payload, files) {
+    const checkoutApiUrl = getCheckoutApiUrl();
+    if (!checkoutApiUrl) return { skipped: true };
+
+    const formData = new FormData();
+    formData.append('order', JSON.stringify(payload));
+    formData.append('fileMetadata', JSON.stringify(files.map(normalizeUploadedOrderFile)));
+    files.forEach(({ file, metadata }) => {
+        formData.append(metadata.fieldName, file, metadata.originalName || file.name || 'upload');
+    });
+
+    const response = await fetch(checkoutApiUrl, {
+        method: 'POST',
+        body: formData
+    });
+
+    const text = await response.text();
+    let data = {};
+    if (text) {
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = { error: text };
+        }
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || `Checkout API failed with status ${response.status}.`);
+    }
+
+    return { skipped: false, files, server: data };
 }
 
 async function submitOrderToSupabase(payload) {
-    const client = getSupabaseClient();
-    const config = getSupabaseConfig();
-    if (!client) return { skipped: true };
-
-    const files = await uploadOrderFilesToSupabase(client, payload);
-    const { error: orderError } = await client
-        .from(config.ordersTable || 'orders')
-        .insert({
-            id: payload.orderId,
-            customer_name: payload.customer.name,
-            customer_email: payload.customer.email,
-            customer_phone: payload.customer.phone,
-            customer_telegram: payload.customer.telegram,
-            fulfilment: payload.fulfilment,
-            meetup: payload.meetup,
-            delivery: payload.delivery,
-            items: payload.items,
-            totals: payload.totals,
-            payment: payload.payment,
-            status: 'new'
-        });
-    if (orderError) throw orderError;
-
-    if (files.length) {
-        const { error: fileError } = await client
-            .from(config.orderFilesTable || 'order_files')
-            .insert(files.map(file => ({
-                order_id: payload.orderId,
-                item_id: file.itemId,
-                part_key: file.partKey,
-                file_role: file.fileRole,
-                bucket: file.bucket,
-                storage_path: file.path,
-                original_name: file.originalName,
-                content_type: file.contentType,
-                size_bytes: file.size
-            })));
-        if (fileError) throw fileError;
-    }
-
-    return { skipped: false, files };
+    const files = collectCheckoutFilesForApi();
+    return submitCheckoutOrderToApi(payload, files);
 }
 
 function buildSupabaseTestPayload() {

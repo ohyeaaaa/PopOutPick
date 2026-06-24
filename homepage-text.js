@@ -1,6 +1,7 @@
 (function initHomepageText() {
     const APP_CONFIG = window.POPOUTPICK_CONFIG || {};
     const supabaseConfig = APP_CONFIG.commerce?.supabase || {};
+    const quietOptionalWarnings = APP_CONFIG.commerce?.quietOptionalSupabaseWarnings !== false;
 
     function applyHomepageText(textMap) {
         if (!textMap || typeof textMap !== 'object') return;
@@ -30,6 +31,7 @@
     }
 
     loadHomepageText().catch(error => {
+        if (quietOptionalWarnings) return;
         console.warn('Homepage text could not be loaded.', error);
     });
 })();

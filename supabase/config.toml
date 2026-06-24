@@ -1,0 +1,4 @@
+project_id = "jllzhecqlxzegnrqhxnc"
+
+[functions.checkout-order]
+verify_jwt = false

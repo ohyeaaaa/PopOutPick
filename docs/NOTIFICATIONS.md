@@ -89,7 +89,7 @@ Then run:
 npm.cmd run test-notification
 ```
 
-You can also sign into `admin.html` and press **Test Notification** in the Deployment Checks section.
+You can also sign into `/admin` and press **Test Notification** in the Deployment Checks section.
 
 The **Test File Bot** button checks whether service-role storage downloading is configured. It will skip/fail until you add `SUPABASE_SERVICE_ROLE_KEY`.
 

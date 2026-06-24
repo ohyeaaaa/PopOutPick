@@ -119,28 +119,12 @@ to authenticated
 using (public.is_admin());
 
 drop policy if exists "Public can create orders" on public.orders;
-create policy "Public can create orders"
+drop policy if exists "Public cannot create orders directly" on public.orders;
+create policy "Public cannot create orders directly"
 on public.orders
 for insert
 to anon, authenticated
-with check (
-    id ~ '^order-[a-z0-9][a-z0-9-]{8,119}$'
-    and status = 'new'
-    and length(trim(customer_name)) between 1 and 120
-    and length(trim(customer_email)) between 3 and 254
-    and customer_email like '%@%'
-    and length(trim(customer_phone)) between 3 and 40
-    and (customer_telegram is null or length(trim(customer_telegram)) <= 80)
-    and fulfilment in ('meetup', 'delivery')
-    and jsonb_typeof(items) = 'array'
-    and jsonb_array_length(items) between 1 and 20
-    and jsonb_typeof(totals) = 'object'
-    and jsonb_typeof(payment) = 'object'
-    and (
-        (fulfilment = 'meetup' and meetup is not null and delivery is null)
-        or (fulfilment = 'delivery' and delivery is not null)
-    )
-);
+with check (false);
 
 drop policy if exists "Admins can read orders" on public.orders;
 create policy "Admins can read orders"
@@ -158,20 +142,12 @@ using (public.is_admin())
 with check (public.is_admin());
 
 drop policy if exists "Public can create order files" on public.order_files;
-create policy "Public can create order files"
+drop policy if exists "Public cannot create order file rows directly" on public.order_files;
+create policy "Public cannot create order file rows directly"
 on public.order_files
 for insert
 to anon, authenticated
-with check (
-    order_id ~ '^order-[a-z0-9][a-z0-9-]{8,119}$'
-    and bucket = order_id
-    and length(storage_path) between 8 and 240
-    and (
-        (file_role = 'design_upload' and storage_path like 'design/%')
-        or (file_role = 'payment_proof' and storage_path like 'payment/%')
-    )
-    and (size_bytes is null or size_bytes between 0 and 20971520)
-);
+with check (false);
 
 drop policy if exists "Admins can read order files" on public.order_files;
 create policy "Admins can read order files"
@@ -413,20 +389,41 @@ end;
 $$;
 
 revoke all on function public.ensure_order_storage_bucket(text) from public;
-grant execute on function public.ensure_order_storage_bucket(text) to anon, authenticated;
+revoke execute on function public.ensure_order_storage_bucket(text) from anon, authenticated;
+grant execute on function public.ensure_order_storage_bucket(text) to service_role;
+
+create or replace function public.delete_order_storage_bucket(p_bucket_id text)
+returns text
+language plpgsql
+security definer
+set search_path = public, storage
+as $$
+begin
+    if p_bucket_id !~ '^order-[a-z0-9][a-z0-9-]{0,93}$' then
+        raise exception 'Invalid order bucket id';
+    end if;
+
+    delete from storage.objects
+    where bucket_id = p_bucket_id;
+
+    delete from storage.buckets
+    where id = p_bucket_id;
+
+    return p_bucket_id;
+end;
+$$;
+
+revoke all on function public.delete_order_storage_bucket(text) from public;
+revoke execute on function public.delete_order_storage_bucket(text) from anon, authenticated;
+grant execute on function public.delete_order_storage_bucket(text) to service_role;
 
 drop policy if exists "Public can upload order bucket files" on storage.objects;
-create policy "Public can upload order bucket files"
+drop policy if exists "Public cannot upload order bucket files directly" on storage.objects;
+create policy "Public cannot upload order bucket files directly"
 on storage.objects
 for insert
 to anon, authenticated
-with check (
-    bucket_id like 'order-%'
-    and (
-        name like 'design/%'
-        or name like 'payment/%'
-    )
-);
+with check (false);
 
 drop policy if exists "Admins can read order bucket files" on storage.objects;
 create policy "Admins can read order bucket files"

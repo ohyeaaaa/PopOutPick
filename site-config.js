@@ -1,6 +1,10 @@
 // PopOutPick central text and typography controls
 // Edit this file to change website wording, symbols, font family, and font sizes.
 window.POPOUTPICK_CONFIG = {
+    contact: {
+        telegramUrl: "https://t.me/aroyston"
+    },
+
     fonts: {
         family: "'Helvetica Neue', Helvetica, Arial, sans-serif"
     },
@@ -113,6 +117,8 @@ window.POPOUTPICK_CONFIG = {
         },
         promoCodes: [],
         enableCheckoutTestButton: false,
+        quietOptionalSupabaseWarnings: true,
+        checkoutApiUrl: "https://jllzhecqlxzegnrqhxnc.supabase.co/functions/v1/checkout-order",
         meetupShippingPrice: 0,
         deliveryShippingPrice: 2.6,
         supabase: {
@@ -200,6 +206,7 @@ window.POPOUTPICK_CONFIG = {
             totalHeader: "Total Price",
             editDesign: "Edit design",
             continueToDetails: "Continue to Details →",
+            continueToPayment: "Continue to Payment →",
             fulfilmentTitle: "Fulfilment",
             fulfilmentPrompt: "How would you like to receive your order?",
             fulfilmentDetailsTitle: "Fulfilment Details",
@@ -232,6 +239,7 @@ window.POPOUTPICK_CONFIG = {
             paymentScreenshotLabel: "Upload Payment's Screen Shot",
             paymentScreenshotHelp: "Attach your bank payment confirmation screenshot.",
             confirmButton: "I’ve Paid — Confirm Order",
+            confirmSavingButton: "Saving order...",
             testSupabaseButton: "Send test order to Supabase",
             subtotalLabel: "Subtotal",
             shippingLabel: "Shipping",
@@ -250,7 +258,32 @@ window.POPOUTPICK_CONFIG = {
             backToCart: "‹ Back to Cart",
             backToDetails: "‹ Back to Details",
             successTitle: "Order confirmed",
-            successMessage: "Thank you. We will contact you to confirm the details.",
+            successMessage: "Thank you. Save your order ID. We will verify your payment screenshot and contact you to confirm the next step.",
+            successKicker: "Order received",
+            successOrderIdLabel: "Order ID",
+            successStepPayment: "We verify your PayNow screenshot.",
+            successStepConfirm: "We contact you if any design or meetup detail needs confirmation.",
+            successStepPrepare: "Your PopOutPick is prepared for the selected meetup or delivery option.",
+            checkoutTrustTitle: "Good to know",
+            checkoutTrustLeadTime: "Orders open from 7 days ahead so there is time to prepare your design.",
+            checkoutTrustPayment: "Payment proof is uploaded privately with your order.",
+            checkoutTrustCards: {
+                cart: [
+                    { label: "Production", value: "Custom orders need at least 7 days before meetup or delivery." },
+                    { label: "Payment", value: "PayNow confirmation is checked before the order is prepared." },
+                    { label: "Contact", value: "We use your contact details only for this order." }
+                ],
+                details: [
+                    { label: "Meetup or delivery", value: "Choose a valid date, time, and location before payment." },
+                    { label: "Order updates", value: "We will contact you using your email, phone, or Telegram handle." },
+                    { label: "Privacy", value: "Only the details needed to complete your order are collected." }
+                ],
+                payment: [
+                    { label: "Before confirming", value: "Pay the exact total shown and upload your bank screenshot." },
+                    { label: "After confirming", value: "Your order is saved and we will verify payment before making it." },
+                    { label: "Keep your ID", value: "Save the order ID shown after confirmation." }
+                ]
+            },
             missingSupabaseMessage: "Supabase is not configured yet.",
             supabaseTestSuccess: "Test order saved in Supabase.",
             supabaseTestError: "Supabase test failed. Check your project URL, anon key, and RLS policies."

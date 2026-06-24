@@ -2,6 +2,7 @@
     const APP_CONFIG = window.POPOUTPICK_CONFIG || {};
     const commerceConfig = APP_CONFIG.commerce || {};
     const supabaseConfig = commerceConfig.supabase || {};
+    const backendAdminApiBaseUrl = String(commerceConfig.backendAdminApiBaseUrl || '').replace(/\/+$/, '');
     const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const locations = [
         { id: '', name: 'All locations' },
@@ -131,6 +132,12 @@
         renderLocationOptions(document.getElementById('slot-location'));
         renderLocationOptions(document.getElementById('blocked-location'), true);
         renderDayOptions(document.getElementById('slot-day'));
+        const backendOnlyButtons = [runPreflightButton, testNotificationButton, testFileNotificationButton];
+        backendOnlyButtons.forEach(button => {
+            if (!button || backendAdminApiBaseUrl) return;
+            button.hidden = true;
+            button.disabled = true;
+        });
     }
 
     async function requireAdmin() {
@@ -667,18 +674,31 @@
         refreshButton.addEventListener('click', () => handleAsync(loadAdminData));
         exportJsonButton.addEventListener('click', exportAdminJson);
         exportCsvButton.addEventListener('click', exportOrdersCsv);
-        runPreflightButton.addEventListener('click', () => window.open('/api/admin/preflight', '_blank', 'noopener,noreferrer'));
+        runPreflightButton.addEventListener('click', () => {
+            if (!backendAdminApiBaseUrl) return;
+            window.open(`${backendAdminApiBaseUrl}/api/admin/preflight`, '_blank', 'noopener,noreferrer');
+        });
         testNotificationButton.addEventListener('click', () => handleAsync(async () => {
+            if (!backendAdminApiBaseUrl) return;
             setStatus(adminStatus, 'Sending test notification...');
-            const response = await fetch('/api/admin/test-notification', { headers: { Accept: 'application/json' } });
+            const response = await fetch(`${backendAdminApiBaseUrl}/api/admin/test-notification`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+            });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(payload.error || 'Notification test failed.');
             setStatus(adminStatus, 'Notification test completed. Check email/Telegram results.', 'success');
             console.log('Notification test result', payload);
         }));
         testFileNotificationButton.addEventListener('click', () => handleAsync(async () => {
+            if (!backendAdminApiBaseUrl) return;
             setStatus(adminStatus, 'Testing file bot...');
-            const response = await fetch('/api/admin/test-file-notification', { headers: { Accept: 'application/json' } });
+            const response = await fetch(`${backendAdminApiBaseUrl}/api/admin/test-file-notification`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+            });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(payload.error || 'File notification test failed.');
             setStatus(adminStatus, 'File bot test completed. Check console for details.', 'success');

@@ -7,6 +7,9 @@ logs/
 data/
 *.log
 npm-debug.log*
+.tmp-*/
+.tmp*/
+supabase/.temp/
 
 # Raw design/source exports are not needed for the public website.
 Front end/

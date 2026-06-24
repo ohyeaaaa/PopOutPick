@@ -1,6 +1,6 @@
 # PopOutPick Self-Hosting
 
-This backend serves the existing static website from this folder with a narrow allowlist of files and folders.
+This Node backend is optional when running the site through GitHub Pages plus Supabase Edge Functions. Keep it only for local testing or if you want a traditional server later.
 
 ## Start Locally
 
@@ -36,9 +36,9 @@ This checks that public routes work, admin routes are protected, and sensitive f
 
 The backend adds an extra HTTP Basic Auth prompt before serving:
 
-- `admin.html`
-- `admin.css`
-- `admin.js`
+- `admin/index.html`
+- `admin/admin.css`
+- `admin/admin.js`
 - `/api/admin/requests`
 - `/api/admin/logs`
 
@@ -146,7 +146,7 @@ The admin page can now:
 
 ## Order Notifications
 
-Email and Telegram notification setup is documented in `NOTIFICATIONS.md`.
+Email and Telegram notification setup is documented in `docs/NOTIFICATIONS.md`.
 
 Use Supabase Database Webhooks to call:
 
@@ -162,11 +162,23 @@ For payment/design files, also configure a Supabase webhook to:
 https://your-domain.example/api/order-file-notification
 ```
 
+## Checkout Submission
+
+Orders are created by the backend at:
+
+```text
+https://your-domain.example/api/checkout/orders
+```
+
+The browser sends the order intent and payment/design image files to this endpoint. The backend recomputes product prices, shipping, discounts, and fulfilment validity, then creates the private Supabase order bucket, uploads files, and inserts `orders` and `order_files` with `SUPABASE_SERVICE_ROLE_KEY`.
+
+For same-origin hosting, leave `commerce.checkoutApiUrl` blank in `site-config.js`. If the frontend is hosted somewhere else, set `commerce.checkoutApiUrl` to the backend URL above and add that frontend origin to `CHECKOUT_ALLOWED_ORIGINS` in `.env`.
+
 ## GitHub Pages
 
-Static GitHub Pages deployment is documented in `GITHUB_PAGES.md`.
+Static GitHub Pages deployment is documented in `docs/GITHUB_PAGES.md`.
 
-GitHub Pages can host the website, but it cannot run `server.js`. Keep the backend separately available for Telegram/email notifications.
+GitHub Pages can host the website, but it cannot run `server.js`. Keep the backend separately available for checkout submission and Telegram/email notifications. The GitHub Pages build does not publish the admin files.
 
 ## Files Intentionally Not Served
 
@@ -174,17 +186,18 @@ The backend does not serve the entire project folder. It blocks files like:
 
 - `.env`
 - `.git`
-- `supabase-setup.sql`
-- `google-app-script.gs`
-- `TEXT_GUIDE.md`
+- `database/supabase-setup.sql`
+- `integrations/google-app-script.gs`
+- `PopOutPick-payment.html`
+- `docs/TEXT_GUIDE.md`
 - `TELEGRAM.txt`
 - source design/STL/3MF folders
 
-Only the public pages, scripts, styles, GLB files, selected images, video assets, and admin files behind the admin gate are served.
+Only the public pages, scripts, styles, GLB files, selected images, video assets, and video files are served publicly. Admin files are served only by the backend behind the admin gate.
 
 ## Remaining Public Launch Checklist
 
-- Apply the latest `supabase-setup.sql` in Supabase.
+- Apply the latest `database/supabase-setup.sql` in Supabase.
 - Confirm RLS is enabled on all tables listed in the SQL.
 - Confirm the admin Auth user is in `public.admin_users`.
 - Set a long unique `ADMIN_PASSWORD` in `.env`.

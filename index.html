@@ -3,29 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PopoutPicks Setup - Final Build + Socials</title>
+    <title>PopOutPick - Custom Modular Guitar Pick Holder</title>
+    <meta name="description" content="Build a custom PopOutPick modular guitar pick holder with configurable colours, parts, design uploads, checkout, and PayNow payment proof.">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* --- Core Palette Variables: Dark Studio + Translucency --- */
         :root {
-            --brand-fire: #e25822;      
-            --brand-fire-dark: #b31b00; 
-            
-            --bg-base: #110d0b;         
-            --bg-surface: #1c1613;      
-            
-            --bg-surface-glass: rgba(28, 22, 19, 0.65); 
+            --brand-fire: #e25822;
+            --brand-fire-dark: #b31b00;
+
+            --bg-base: #110d0b;
+            --bg-surface: #1c1613;
+
+            --bg-surface-glass: rgba(28, 22, 19, 0.65);
             --bg-dropzone-glass: rgba(28, 22, 19, 0.4);
-            
-            --border-subtle: rgba(255, 255, 255, 0.08); 
+
+            --border-subtle: rgba(255, 255, 255, 0.08);
             --border-highlight: rgba(255, 255, 255, 0.15);
-            
-            --text-primary: #f5f2f0;    
-            --text-secondary: #9e9188;  
-            
-            --hover-fire-bg: rgba(226, 88, 34, 0.08); 
+
+            --text-primary: #f5f2f0;
+            --text-secondary: #9e9188;
+
+            --hover-fire-bg: rgba(226, 88, 34, 0.08);
         }
 
         /* --- Global Resets & Typography --- */
@@ -35,21 +36,48 @@
             padding: 0;
         }
 
+        html {
+            background: #000000;
+        }
+
         body {
+            --home-reveal-progress: 0;
+            --home-gradient-opacity: 1;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: var(--text-primary);
-            background-color: var(--bg-base); 
-            
-            background-image: 
+            background-color: #000000;
+            background-image:
                 linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
             background-size: 30px 30px;
             background-position: center top;
-            background-attachment: fixed; 
-            
+            background-attachment: fixed;
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(180deg, #1a0000 0%, #5c0000 24%, #b31b00 48%, #e25822 72%, #ff9a00 100%),
+                radial-gradient(circle at 18% 20%, rgba(255, 154, 0, 0.76), transparent 34%),
+                radial-gradient(circle at 82% 12%, rgba(226, 88, 34, 0.64), transparent 36%);
+            background-size: 180% 260%, 76% 76%, 88% 88%;
+            background-position: 50% 0%, 18% 20%, 82% 12%;
+            opacity: var(--home-gradient-opacity);
+            animation: pageGradientFlow 14s ease-in-out infinite alternate;
+            transition: opacity 0.08s linear;
+        }
+
+        body > :not(script) {
+            position: relative;
+            z-index: 1;
         }
 
         /* --- Technical / Monospace Typography --- */
@@ -62,7 +90,7 @@
             margin-bottom: 8px;
             display: block;
         }
-        
+
         .mono-muted {
             color: var(--text-secondary);
         }
@@ -180,30 +208,48 @@
         }
 
         /* --- THE FIRE ANIMATION --- */
+        @keyframes pageGradientFlow {
+            0% {
+                background-position: 48% 0%, 12% 18%, 86% 8%;
+            }
+            50% {
+                background-position: 52% 58%, 78% 42%, 18% 70%;
+            }
+            100% {
+                background-position: 46% 100%, 38% 92%, 92% 74%;
+            }
+        }
+
         @keyframes firePulse {
-            0% { background-position: 50% 0%; }
-            100% { background-position: 50% 100%; }
+            0% {
+                background-position: 48% 0%, 12% 18%, 86% 8%;
+            }
+            50% {
+                background-position: 52% 58%, 78% 42%, 18% 70%;
+            }
+            100% {
+                background-position: 46% 100%, 38% 92%, 92% 74%;
+            }
         }
 
         /* --- TOP FULL-WIDTH FIRE BANNER --- */
         .glb-grid-wrapper {
             width: 100%;
             position: relative;
-            padding: 300px 20px; 
-            margin-bottom: 60px;
-            background: linear-gradient(180deg, #1a0000 0%, #5c0000 25%, #b31b00 50%, #e25822 75%, #ff9a00 100%);
-            background-size: 400% 400%;
-            animation: firePulse 8s ease-in-out infinite alternate;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
-            overflow: hidden; 
+            padding: 300px 20px;
+            margin-bottom: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: hidden;
             display: flex;
             justify-content: center;
         }
 
         .glb-grid-inner {
             width: 100%;
-            max-width: 1000px; 
+            max-width: 1220px;
             position: relative;
+            z-index: 9;
         }
 
         .middle-logo {
@@ -211,18 +257,18 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 5; 
-            max-width: 450px; 
+            z-index: 5;
+            max-width: 560px;
             width: 100%;
             height: auto;
-            pointer-events: none; 
-            filter: drop-shadow(0 10px 30px rgba(255, 150, 0, 0.6)); 
+            pointer-events: none;
+            filter: drop-shadow(0 10px 30px rgba(255, 150, 0, 0.6));
         }
 
         .glb-grid {
             position: relative;
-            width: min(100%, 1180px);
-            height: 680px;
+            width: min(100%, 1320px);
+            height: 780px;
             margin: 0 auto;
             perspective: 1600px;
             transform-style: preserve-3d;
@@ -240,11 +286,11 @@
             align-items: center;
             justify-content: center;
             width: 24%;
-            min-width: 180px;
+            min-width: 220px;
             aspect-ratio: 16 / 9;
             cursor: pointer;
             text-align: center;
-            padding: 10px;
+            padding: 14px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
             position: absolute;
             top: 50%;
@@ -252,7 +298,7 @@
             transform: translate3d(-50%, -50%, 0px) rotateZ(0deg);
 
             z-index: 1;
-            transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, outline 0.2s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, outline 0.2s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .glb-dropzone:focus-visible {
@@ -284,7 +330,7 @@
             right: 10px;
             bottom: 8px;
             z-index: 2;
-            font-size: 12px;
+            font-size: 14px;
             color: var(--text-primary);
             font-weight: 800;
             letter-spacing: 0.7px;
@@ -294,7 +340,7 @@
             transition: color 0.3s ease;
             text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
         }
-        
+
         .glb-dropzone:hover span {
             color: var(--text-primary);
         }
@@ -320,7 +366,7 @@
             transition: color 0.3s ease, opacity 0.3s ease;
             display: none;
         }
-        
+
         .glb-dropzone:hover .glb-icon {
             color: var(--brand-fire);
             opacity: 0.8;
@@ -329,16 +375,25 @@
         /* --- BENTO GRID LAYOUT --- */
         .container {
             width: 100%;
-            max-width: 1100px; 
-            margin: 0 auto; 
-            padding: 0 20px 80px 20px; 
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 0 28px 110px 28px;
+        }
+
+        .home-content-reveal {
+            position: relative;
+            z-index: 12;
+            margin-top: calc(-82px + (38px * var(--home-reveal-progress)));
+            opacity: 1;
+            transform: translateY(calc(34px * (1 - var(--home-reveal-progress))));
+            transition: opacity 0.08s linear, transform 0.08s linear, margin-top 0.08s linear;
         }
 
         .bento-layout {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
-            gap: 25px; 
-            align-items: start; 
+            gap: 34px;
+            align-items: start;
         }
 
         .col-span-12 { grid-column: span 12; }
@@ -348,7 +403,7 @@
         .col-span-5 { grid-column: span 5; }
         .col-span-4 { grid-column: span 4; }
 
-        .stagger-down { margin-top: 60px; }
+        .stagger-down { margin-top: 80px; }
         .overlap-up { margin-top: -30px; z-index: 10; position: relative; }
 
         @media (max-width: 900px) {
@@ -364,7 +419,7 @@
             transform: translateY(40px);
             transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        
+
         .reveal-on-scroll.is-visible {
             opacity: 1;
             transform: translateY(0);
@@ -375,9 +430,9 @@
             background-color: var(--bg-surface-glass);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            padding: 36px; 
-            border-radius: 12px; 
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05); 
+            padding: 48px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -385,7 +440,7 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
             position: relative;
         }
-        
+
         .card.accent-left {
             border-left: 3px solid var(--brand-fire);
         }
@@ -393,16 +448,17 @@
         .card:hover {
             box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 20px rgba(226, 88, 34, 0.05);
             border-color: var(--border-highlight);
-            z-index: 20; 
+            z-index: 20;
         }
 
         .card-header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 32px;
         }
 
+        .card-header h1,
         .card-header h3 {
-            font-size: 20px; 
+            font-size: 28px;
             font-weight: 700;
             color: var(--text-primary);
             margin-bottom: 6px;
@@ -411,7 +467,7 @@
         }
 
         .card-header p, .card-content-text {
-            font-size: 15px; 
+            font-size: 18px;
             color: var(--text-secondary);
             font-weight: 400;
         }
@@ -425,16 +481,16 @@
             width: 100%;
             background-color: rgba(0, 0, 0, 0.4);
             border: 1px solid var(--border-subtle);
-            min-height: 250px;
+            min-height: 320px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             position: relative;
             box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
-            padding: 20px;
-            margin-top: 16px;
-            margin-bottom: 16px;
+            padding: 28px;
+            margin-top: 22px;
+            margin-bottom: 22px;
         }
 
         .hud-container::before, .hud-container::after, .hud-corners-alt::before, .hud-corners-alt::after {
@@ -448,10 +504,10 @@
             opacity: 0.6;
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease, opacity 0.3s ease;
         }
-        
+
         .hud-container::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
         .hud-container::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-        
+
         .hud-corners-alt {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -472,7 +528,7 @@
             align-items: center;
             width: 100%;
         }
-        
+
         .input-prefix {
             position: absolute;
             left: 20px;
@@ -480,12 +536,12 @@
             font-family: monospace;
             font-size: 16px;
             font-weight: bold;
-            pointer-events: none; 
+            pointer-events: none;
             transition: color 0.3s ease, text-shadow 0.3s ease;
         }
 
         @keyframes blink { 50% { opacity: 0; } }
-        
+
         .input-group:focus-within .input-prefix {
             color: #ffffff;
             text-shadow: 0 0 8px var(--brand-fire);
@@ -494,13 +550,13 @@
 
         input[type="text"] {
             width: 100%;
-            padding: 16px 20px 16px 45px; 
+            padding: 16px 20px 16px 45px;
             border: 1px solid var(--border-subtle);
             border-radius: 8px;
-            font-family: 'SFMono-Regular', Consolas, monospace; 
+            font-family: 'SFMono-Regular', Consolas, monospace;
             font-size: 14px;
             color: var(--text-primary);
-            background-color: rgba(0, 0, 0, 0.4); 
+            background-color: rgba(0, 0, 0, 0.4);
             transition: all 0.2s ease;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
         }
@@ -517,7 +573,7 @@
             width: 100%;
             height: auto;
             aspect-ratio: 16 / 9;
-            background-color: rgba(0, 0, 0, 0.4); 
+            background-color: rgba(0, 0, 0, 0.4);
             border-radius: 8px;
             border: 1px solid var(--border-subtle);
             display: block;
@@ -525,21 +581,21 @@
             box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
             transition: border-color 0.3s ease;
         }
-        
+
         .card:hover #scroll-canvas {
             border-color: var(--border-highlight);
         }
 
         #spinning-animation-card {
-            min-height: 450px; 
+            min-height: 560px;
         }
 
         /* --- INTERACTIVE FIRE BUTTON --- */
         .build-button-container {
             display: flex;
             justify-content: center;
-            margin-top: 40px;
-            padding: 20px;
+            margin-top: 56px;
+            padding: 28px;
             background: var(--bg-surface-glass);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -547,19 +603,22 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-subtle);
             position: relative;
-            overflow: hidden; 
+            overflow: hidden;
             z-index: 1;
             transition: box-shadow 0.4s ease, border-color 0.4s ease;
-            cursor: pointer; 
+            cursor: pointer;
         }
 
         .build-button-container::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(180deg, #1a0000 0%, #5c0000 25%, #b31b00 50%, #e25822 75%, #ff9a00 100%);
-            background-size: 400% 400%;
-            animation: firePulse 4s ease-in-out infinite alternate; 
+            background:
+                linear-gradient(180deg, #1a0000 0%, #5c0000 24%, #b31b00 48%, #e25822 72%, #ff9a00 100%),
+                radial-gradient(circle at 20% 20%, rgba(255, 154, 0, 0.68), transparent 34%),
+                radial-gradient(circle at 82% 18%, rgba(226, 88, 34, 0.54), transparent 36%);
+            background-size: 180% 260%, 70% 70%, 86% 86%;
+            animation: firePulse 4s ease-in-out infinite alternate;
             z-index: -1;
             opacity: 0;
             transition: opacity 0.4s ease;
@@ -568,9 +627,9 @@
         .build-button-container:hover::before {
             opacity: 1;
         }
-        
+
         .build-button-container:hover {
-            box-shadow: 0 15px 40px rgba(226, 88, 34, 0.6), 0 0 30px rgba(226, 88, 34, 0.2); 
+            box-shadow: 0 15px 40px rgba(226, 88, 34, 0.6), 0 0 30px rgba(226, 88, 34, 0.2);
             border-color: transparent;
         }
 
@@ -578,7 +637,7 @@
             background: transparent;
             border: none;
             font-family: 'Impact', 'Helvetica Neue', sans-serif;
-            font-size: 48px; 
+            font-size: 64px;
             font-weight: 900;
             color: var(--text-primary);
             cursor: pointer;
@@ -589,11 +648,11 @@
         }
 
         .build-button-container:hover .build-button {
-            color: #ffffff; 
-            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 154, 0, 0.4); 
-            transform: scale(1.05) skewX(-5deg); 
+            color: #ffffff;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 154, 0, 0.4);
+            transform: scale(1.05) skewX(-5deg);
         }
-        
+
         .build-button:active {
             transform: scale(0.98) !important;
         }
@@ -604,8 +663,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 5;
-            width: min(84vw, 560px);
-            height: clamp(190px, 28vw, 270px);
+            width: min(86vw, 700px);
+            height: clamp(230px, 31vw, 350px);
             pointer-events: none;
             display: grid;
             place-items: center;
@@ -617,7 +676,7 @@
             left: 50%;
             bottom: 0;
             transform: translateX(-50%);
-            width: min(10000%, 1400px);
+            width: min(calc(100vw - 40px), 1600px);
             height: auto;
             z-index: 1;
             opacity: 0.95;
@@ -627,23 +686,23 @@
         .hero-logo-img {
             position: relative;
             z-index: 2;
-            width: min(92%, 470px);
+            width: min(94%, 580px);
             height: auto;
-            margin-bottom: 28px;
+            margin-bottom: 36px;
             filter: drop-shadow(0 8px 14px rgba(255, 154, 0, 0.45)) drop-shadow(0 2px 2px rgba(255, 255, 255, 0.2));
         }
 
         .design-icon-row {
             display: flex;
             justify-content: center;
-            gap: 18px;
+            gap: 24px;
             flex-wrap: wrap;
         }
 
         .design-icon-card {
-            width: 150px;
-            min-height: 150px;
-            padding: 18px;
+            width: 180px;
+            min-height: 180px;
+            padding: 22px;
             border-radius: 18px;
             background: #ffffff;
             display: grid;
@@ -654,13 +713,13 @@
 
         .design-icon-card img {
             width: 100%;
-            max-height: 95px;
+            max-height: 118px;
             object-fit: contain;
         }
 
         .design-icon-card span {
             color: #110d0b;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 900;
             letter-spacing: 1px;
             text-transform: uppercase;
@@ -691,13 +750,13 @@
         .individual-parts-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 18px;
-            margin-top: 18px;
+            gap: 24px;
+            margin-top: 24px;
         }
 
         .part-preview-card {
             position: relative;
-            min-height: 240px;
+            min-height: 300px;
             border: 1px solid rgba(226, 88, 34, 0.26);
             border-radius: 16px;
             background: rgba(0, 0, 0, 0.34);
@@ -725,12 +784,337 @@
             z-index: 2;
             color: var(--text-primary);
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 900;
             letter-spacing: 1px;
             text-align: center;
             text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
             text-transform: uppercase;
+        }
+
+        .product-proof {
+            display: grid;
+            grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.55fr);
+            gap: 30px;
+            align-items: stretch;
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            background: var(--bg-surface-glass);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            padding: 24px;
+        }
+
+        .product-proof-media {
+            min-height: 460px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.34);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .product-proof-media video {
+            width: 100%;
+            height: 100%;
+            min-height: 460px;
+            object-fit: cover;
+            display: block;
+            transform: rotate(-90deg) scale(1.25);
+            transform-origin: center;
+        }
+
+        .product-proof-copy {
+            align-self: center;
+            padding: 28px;
+        }
+
+        .product-proof-copy h3 {
+            color: #ffffff;
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            line-height: 1;
+            margin: 8px 0 14px;
+            text-transform: uppercase;
+        }
+
+        .product-proof-copy p {
+            color: rgba(245, 242, 240, 0.78);
+            font-size: 1.18rem;
+            line-height: 1.6;
+        }
+
+        .proof-points {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .proof-points span {
+            border: 1px solid rgba(226, 88, 34, 0.34);
+            border-radius: 999px;
+            color: #ffffff;
+            background: rgba(226, 88, 34, 0.12);
+            font-size: 0.95rem;
+            font-weight: 900;
+            padding: 9px 12px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 760px) {
+            html,
+            body {
+                background-attachment: scroll;
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+
+            .site-header {
+                height: 62px;
+                padding: 0 14px;
+            }
+
+            .header-logo {
+                font-size: 18px;
+                letter-spacing: 0;
+            }
+
+            .header-icons {
+                right: 14px;
+                gap: 12px;
+            }
+
+            .icon-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .icon-btn[aria-label="Search"],
+            .icon-btn[aria-label="Telegram"] {
+                display: none;
+            }
+
+            .glb-grid-wrapper {
+                display: grid;
+                justify-items: center;
+                max-width: 100vw;
+                min-height: auto;
+                padding: 38px 14px 28px;
+                margin-bottom: 0;
+                overflow: hidden;
+            }
+
+            .glb-grid-inner {
+                width: min(100%, calc(100vw - 44px), 300px);
+                max-width: 300px;
+                min-width: 0;
+                display: grid;
+                gap: 18px;
+                justify-items: center;
+                justify-self: center;
+                margin: 0 auto;
+                overflow: hidden;
+            }
+
+            .product-wordmark {
+                position: relative;
+                top: auto;
+                left: auto;
+                transform: none;
+                width: min(100%, 300px);
+                height: 128px;
+                margin: 0 auto;
+                overflow: hidden;
+            }
+
+            .hero-fire-gif {
+                width: 360px;
+                max-width: 125%;
+                opacity: 0.82;
+            }
+
+            .hero-logo-img {
+                width: min(86%, 258px);
+                margin-bottom: 18px;
+            }
+
+            .glb-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                width: min(100%, calc(100vw - 44px), 300px);
+                max-width: 300px;
+                height: auto;
+                margin: 0 auto;
+                perspective: none;
+                transform-style: flat;
+                overflow: hidden;
+            }
+
+            .glb-dropzone {
+                position: relative;
+                top: auto;
+                left: auto;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                min-height: 92px;
+                aspect-ratio: 1 / 1;
+                padding: 6px;
+                transform: none !important;
+                border-radius: 10px;
+                z-index: 1 !important;
+            }
+
+            .glb-dropzone span {
+                left: 6px;
+                right: 6px;
+                bottom: 6px;
+                font-size: 9px;
+                line-height: 1.15;
+                letter-spacing: 0.4px;
+            }
+
+            .container {
+                padding: 0 14px 52px;
+            }
+
+            .home-content-reveal {
+                margin-top: calc(-22px + (12px * var(--home-reveal-progress)));
+                opacity: 1;
+                transform: translateY(calc(18px * (1 - var(--home-reveal-progress))));
+            }
+
+            .bento-layout {
+                gap: 16px;
+            }
+
+            .card {
+                padding: 22px;
+                border-radius: 10px;
+            }
+
+            .card-header {
+                margin-bottom: 16px;
+            }
+
+            .card-header h1,
+            .card-header h3,
+            .card > h3 {
+                font-size: 18px;
+            }
+
+            .card-header p,
+            .card-content-text,
+            .input-group p {
+                font-size: 0.98rem !important;
+                line-height: 1.55 !important;
+            }
+
+            .hud-container {
+                min-height: 190px !important;
+                padding: 14px;
+            }
+
+            .hud-container[style*="min-height: 450px"] {
+                min-height: 300px !important;
+            }
+
+            .hud-container video {
+                height: 300px !important;
+                min-height: 280px !important;
+                transform: rotate(-90deg) scale(1.08) !important;
+            }
+
+            #scroll-glb-viewer {
+                min-height: 260px !important;
+            }
+
+            .card[style*="min-height: 420px"] {
+                min-height: auto !important;
+                padding: 24px !important;
+            }
+
+            #spinning-animation-card {
+                min-height: auto;
+            }
+
+            .individual-parts-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .part-preview-card {
+                min-height: 150px;
+                border-radius: 10px;
+            }
+
+            .part-preview-card span {
+                font-size: 9px;
+                line-height: 1.15;
+                letter-spacing: 0.4px;
+            }
+
+            .build-button-container {
+                margin-top: 12px;
+                padding: 16px;
+                border-radius: 10px;
+            }
+
+            .build-button {
+                font-size: clamp(2rem, 12vw, 3rem);
+                letter-spacing: 1px;
+                line-height: 1;
+            }
+
+            .product-proof {
+                grid-template-columns: 1fr;
+                gap: 14px;
+                padding: 14px;
+            }
+
+            .product-proof-media,
+            .product-proof-media video {
+                min-height: 260px;
+            }
+
+            .product-proof-media video {
+                transform: rotate(-90deg) scale(1.08);
+            }
+
+            .product-proof-copy {
+                padding: 8px;
+            }
+
+            .product-proof-copy h3 {
+                font-size: 1.55rem;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .header-icons {
+                gap: 10px;
+            }
+
+            .glb-dropzone {
+                min-height: 82px;
+            }
+
+            .individual-parts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .part-preview-card {
+                min-height: 180px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body::before,
+            .glb-grid-wrapper,
+            .build-button-container::before {
+                animation: none;
+            }
         }
     </style>
 </head>
@@ -745,25 +1129,25 @@
             <a href="configurator.html">Customize</a>
             <a href="configurator.html#checkout-box">Cart</a>
         </nav>
-        
+
         <div class="header-icons">
             <a class="icon-btn" href="https://www.instagram.com/popoutpicks/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
                 <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
             </a>
-            
+
             <button class="icon-btn" aria-label="Telegram">
                 <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </button>
-            
+
             <button class="icon-btn" aria-label="Search" style="margin-left: 8px;">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </button>
-            
+
             <button class="icon-btn" aria-label="Cart" onclick="window.location.href='configurator.html#checkout-box';">
                 <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
                 <span class="cart-badge">0</span>
             </button>
-            
+
             <button class="icon-btn" aria-label="Menu">
                 <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
@@ -791,12 +1175,12 @@
         </div>
     </div>
 
-    <div class="container bento-layout">
-        
+    <div class="container bento-layout home-content-reveal">
+
         <div class="card accent-left col-span-5 reveal-on-scroll">
             <div class="card-header">
                 <span class="mono-accent">// ASSET_VIEWER</span>
-                <h3 data-home-text="hero_card_title">PopOutPick</h3>
+                <h1 data-home-text="hero_card_title">PopOutPick</h1>
                 <p data-home-text="hero_card_tagline">A better way to store your picks</p>
             </div>
             <div class="hud-container">
@@ -805,16 +1189,16 @@
             </div>
             <div class="input-group">
                 <span class="input-prefix">&gt;</span>
-                <p style="color: #ffffff; font-size: 1.05rem; line-height: 1.65;" data-home-text="hero_intro" data-home-text-multiline="true">Welcome to the PopOutPick configurator! Here you can explore our modular guitar pick holder system, designed for musicians who crave customization and style. Each component is 3D printable and crafted to fit together seamlessly, allowing you to create a personalized pick holder that suits your playing style and aesthetic preferences.
+                <p style="color: #ffffff; font-size: 1.22rem; line-height: 1.7;" data-home-text="hero_intro" data-home-text-multiline="true">Welcome to the PopOutPick configurator! Here you can explore our modular guitar pick holder system, designed for musicians who crave customization and style. Each component is 3D printable and crafted to fit together seamlessly, allowing you to create a personalized pick holder that suits your playing style and aesthetic preferences.
 </p>
             </div>
         </div>
 
         <div class="card col-span-7 stagger-down reveal-on-scroll" style="transition-delay: 0.1s;">
             <span class="mono-accent">// RENDER_PREVIEW</span>
-            <div class="hud-container" style="min-height: 450px;">
+            <div class="hud-container" style="min-height: 560px;">
                 <div class="hud-corners-alt"></div>
-                <video src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline style="width:100%; height:100%; min-height:410px; object-fit:cover; border-radius:8px; display:block; transform:rotate(-90deg) scale(1.35); transform-origin:center; box-shadow:0 0 30px rgba(226, 88, 34, 0.22);"></video>
+                <video data-src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline preload="none" style="width:100%; height:100%; min-height:520px; object-fit:cover; border-radius:8px; display:block; transform:rotate(-90deg) scale(1.35); transform-origin:center; box-shadow:0 0 30px rgba(226, 88, 34, 0.22);"></video>
             </div>
         </div>
 
@@ -826,15 +1210,15 @@
             </div>
             <div class="hud-container" style="padding: 0; min-height: auto; border: none; background: transparent;">
                 <div class="hud-corners-alt"></div>
-                <div id="scroll-glb-viewer" style="width:100%; aspect-ratio:16/9; min-height:420px; border-radius:8px; overflow:hidden; position:relative; background:rgba(0,0,0,0.35);"></div>
+                <div id="scroll-glb-viewer" style="width:100%; aspect-ratio:16/9; min-height:540px; border-radius:8px; overflow:hidden; position:relative; background:rgba(0,0,0,0.35);"></div>
             </div>
         </div>
 
-        <div class="card col-span-5 reveal-on-scroll" style="transition-delay: 0.2s; min-height: 420px; padding: 44px;">
+        <div class="card col-span-5 reveal-on-scroll" style="transition-delay: 0.2s; min-height: 540px; padding: 56px;">
             <span class="mono-accent">// SYSTEM_SPECS</span>
             <h3 data-home-text="product_details_title">PRODUCT DETAILS</h3>
-            <p class="card-content-text" style="margin-top: 16px; text-align: left; color: #ffffff; font-size: 1.05rem; line-height: 1.65;" data-home-text="product_details_body" data-home-text-multiline="true">
-                4 Pick Holders, different sizes, whatever design you want. This product will help you remember which pick is which, and make it easy to carry them around. The modular design allows you to customize your pick holder with different colors, patterns, and even add-ons like keychains or clips. Each component is designed to fit together seamlessly, creating a compact and stylish solution for storing your guitar picks. Whether you're a beginner or a seasoned guitarist, the PopOutPick system offers a fun and functional way to keep your picks organized and easily accessible.
+            <p class="card-content-text" style="margin-top: 20px; text-align: left; color: #ffffff; font-size: 1.2rem; line-height: 1.72;" data-home-text="product_details_body" data-home-text-multiline="true">
+                4 Pick Holders, different sizes, whatever design you want. This product will help you remember which pick is which, and make it easy to carry them around. The modular design allows you to customize your pick holder with different colors and patterns. Each component is designed to fit together seamlessly, creating a compact and stylish solution for storing your guitar picks. Whether you're a beginner or a seasoned guitarist, the PopOutPick system offers a fun and functional way to keep your picks organized and easily accessible.
                 <br><br>
             </p>
         </div>
@@ -854,6 +1238,22 @@
             </div>
         </div>
 
+        <section class="product-proof col-span-12 reveal-on-scroll" aria-label="Real PopOutPick product preview">
+            <div class="product-proof-media">
+                <video data-src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline preload="none"></video>
+            </div>
+            <div class="product-proof-copy">
+                <span class="mono-accent">// REAL_PRODUCT_CHECK</span>
+                <h3>See the actual product before you order.</h3>
+                <p>Use the 3D configurator to design it, then compare against real footage so the final order feels less abstract.</p>
+                <div class="proof-points">
+                    <span>Modular body</span>
+                    <span>Sliding access</span>
+                    <span>Custom colours</span>
+                </div>
+            </div>
+        </section>
+
         <div class="build-button-container col-span-12 reveal-on-scroll" tabindex="0" role="button" aria-label="Build It Now" style="transition-delay: 0.1s;" onclick="window.location.href='configurator.html';">
             <button class="build-button" tabindex="-1" data-home-text="build_button_label">BUILD IT NOW</button>
         </div>
@@ -864,15 +1264,68 @@
            1. SMOOTH BOBBING SQUARES
            ========================================== */
         const gridWrapper = document.querySelector('.glb-grid-wrapper');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const mobileHeroQuery = window.matchMedia('(max-width: 760px)');
+        const isMobileViewport = () => mobileHeroQuery.matches;
+        const shouldReduceMotion = () => prefersReducedMotion.matches;
         let isGridInView = true;
+
+        function updateHomeRevealProgress() {
+            if (!gridWrapper) return;
+
+            const rect = gridWrapper.getBoundingClientRect();
+            const revealStart = window.innerHeight * 0.46;
+            const revealDistance = Math.max(window.innerHeight * 1.18, 1);
+            const progress = Math.max(0, Math.min(1, (revealStart - rect.bottom) / revealDistance));
+            const fadeDistance = Math.max(window.innerHeight * 1.7, 1);
+            const gradientOpacity = Math.max(0, Math.min(1, 1 - (window.scrollY / fadeDistance)));
+            document.body.style.setProperty('--home-reveal-progress', progress.toFixed(4));
+            document.body.style.setProperty('--home-gradient-opacity', gradientOpacity.toFixed(4));
+        }
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 isGridInView = entry.isIntersecting;
             });
-        }, { threshold: 0 }); 
+        }, { threshold: 0 });
 
-        observer.observe(gridWrapper);
+        if (gridWrapper) observer.observe(gridWrapper);
+        updateHomeRevealProgress();
+        window.addEventListener('scroll', () => requestAnimationFrame(updateHomeRevealProgress), { passive: true });
+        window.addEventListener('resize', updateHomeRevealProgress);
+
+
+        function loadDeferredVideo(video) {
+            if (!video || video.dataset.loaded === 'true') return;
+            const source = video.dataset.src;
+            if (!source) return;
+            video.src = source;
+            video.dataset.loaded = 'true';
+            video.load();
+            video.play().catch(() => {});
+        }
+
+        function initDeferredVideos() {
+            const videos = document.querySelectorAll('video[data-src]');
+            if (!videos.length) return;
+
+            if (!('IntersectionObserver' in window)) {
+                videos.forEach(loadDeferredVideo);
+                return;
+            }
+
+            const videoObserver = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    loadDeferredVideo(entry.target);
+                    videoObserver.unobserve(entry.target);
+                });
+            }, { rootMargin: isMobileViewport() ? '80px' : '220px' });
+
+            videos.forEach(video => videoObserver.observe(video));
+        }
+
+        initDeferredVideos();
 
         const glbLoaders = [];
         const glbColorPalette = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae];
@@ -937,10 +1390,10 @@
             const height = viewer.clientHeight || box.clientHeight || 160;
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            const renderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true, preserveDrawingBuffer: false });
             renderer.setClearColor(0x000000, 0);
             renderer.setSize(width, height);
-            renderer.setPixelRatio(window.devicePixelRatio || 1);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
             renderer.domElement.style.background = 'transparent';
             viewer.appendChild(renderer.domElement);
 
@@ -1002,6 +1455,7 @@
                 model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
                 fitModelToView(model, camera, view.zoom, view.targetSize);
                 box.classList.add('is-loaded');
+                renderer.render(scene, camera);
             }, undefined, (error) => {
                 console.error(`Failed to load ${file}`, error);
                 box.classList.remove('model-contrast-white', 'model-is-loaded');
@@ -1019,7 +1473,12 @@
             return { scene, camera, renderer, group, resize, setRandomColor, setColor };
         }
 
-        document.querySelectorAll('.glb-dropzone').forEach((box, index) => {
+        const glbDropzones = Array.from(document.querySelectorAll('.glb-dropzone'));
+
+        function startGlbDropzone(box, index) {
+            if (!box || box.dataset.started === 'true') return;
+            box.dataset.started = 'true';
+
             const glbSlot = initGlbSlot(box, index);
             if (glbSlot) glbLoaders.push(glbSlot);
 
@@ -1038,8 +1497,12 @@
             const driftIntensityRot = 9;
 
             function animateSquares(time) {
+                const isMobileHero = isMobileViewport();
                 if (isGridInView) {
-                    if (box.matches(':hover') || box.matches(':focus-visible')) {
+                    if (isMobileHero) {
+                        box.style.transform = 'none';
+                        box.style.zIndex = '1';
+                    } else if (box.matches(':hover') || box.matches(':focus-visible')) {
                         box.style.transform = `translate3d(${homeX - 18}px, ${homeY - 18}px, 120px) scale(1.08) rotateX(0deg) rotateY(0deg) rotateZ(0deg)`;
                     } else {
                         const x = homeX + Math.sin(time * 0.00034 + offsetMoveX) * freeMoveX + Math.sin(time * 0.00081 + offsetMoveZ) * 42;
@@ -1053,7 +1516,7 @@
                         box.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
                     }
                 }
-                if (glbSlot) {
+                if (glbSlot && !shouldReduceMotion()) {
                     glbSlot.group.rotation.y += 0.008;
                     glbSlot.group.scale.set(
                         1 + Math.sin(time * 0.0012 + index) * 0.035,
@@ -1062,17 +1525,53 @@
                     );
                     glbSlot.renderer.render(glbSlot.scene, glbSlot.camera);
                 }
-                requestAnimationFrame(animateSquares);
+                if (!shouldReduceMotion()) requestAnimationFrame(animateSquares);
             }
-            requestAnimationFrame(animateSquares);
-            
+            if (!shouldReduceMotion()) requestAnimationFrame(animateSquares);
+
             box.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     console.log(`Grid item ${index + 1} activated via keyboard!`);
                 }
             });
-        });
+        }
+
+        function startHeroGlbDropzones() {
+            const eagerCount = isMobileViewport() ? 4 : glbDropzones.length;
+            glbDropzones.slice(0, eagerCount).forEach(startGlbDropzone);
+
+            if (eagerCount >= glbDropzones.length) return;
+
+            if (isMobileViewport()) {
+                glbDropzones.slice(eagerCount).forEach((box, offset) => {
+                    const index = eagerCount + offset;
+                    const loadOnIntent = () => startGlbDropzone(box, index);
+                    box.addEventListener('pointerenter', loadOnIntent, { once: true });
+                    box.addEventListener('focus', loadOnIntent, { once: true });
+                    box.addEventListener('click', loadOnIntent, { once: true });
+                });
+                return;
+            }
+
+            if (!('IntersectionObserver' in window)) {
+                glbDropzones.slice(eagerCount).forEach(startGlbDropzone);
+                return;
+            }
+
+            const glbObserver = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    const index = glbDropzones.indexOf(entry.target);
+                    startGlbDropzone(entry.target, index);
+                    glbObserver.unobserve(entry.target);
+                });
+            }, { rootMargin: '160px' });
+
+            glbDropzones.slice(eagerCount).forEach(box => glbObserver.observe(box));
+        }
+
+        startHeroGlbDropzones();
 
         window.addEventListener('resize', () => {
             glbLoaders.forEach(slot => slot.resize());
@@ -1096,6 +1595,87 @@
         let scrollScene = null;
         let scrollCameraRadius = 0;
         let scrollCameraHeight = 0;
+        let scrollGlbAnimationFrame = null;
+        let scrollColorAnimationStart = null;
+        const scrollPaletteDuration = 4000;
+        const scrollModelMaterials = [];
+        const scrollColorPalettes = [
+            0xe25822,
+            0x1e88e5,
+            0x00897b,
+            0xffc107,
+            0x5c6bc0
+        ];
+
+        function getScrollModelNamePath(object) {
+            const names = [];
+            let node = object;
+            while (node) {
+                if (node.name) names.push(node.name);
+                node = node.parent;
+            }
+            return names.join(' ');
+        }
+
+        function normalizeScrollModelName(name) {
+            return String(name || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        function isScrollBodyPart(object) {
+            return normalizeScrollModelName(getScrollModelNamePath(object)).includes('body');
+        }
+
+        function setupScrollPartMaterials(model) {
+            scrollModelMaterials.length = 0;
+            model.traverse((child) => {
+                if (!child.isMesh) return;
+
+                const isBodyPart = isScrollBodyPart(child);
+                const material = new THREE.MeshStandardMaterial({
+                    color: isBodyPart ? 0xf5f2f0 : scrollColorPalettes[0],
+                    metalness: 0.08,
+                    roughness: 0.52
+                });
+                child.material = material;
+                if (!isBodyPart) scrollModelMaterials.push(material);
+            });
+        }
+
+        function updateScrollPartColors(timestamp = performance.now()) {
+            if (!scrollModelMaterials.length) return;
+            if (scrollColorAnimationStart === null) scrollColorAnimationStart = timestamp;
+
+            const paletteCount = scrollColorPalettes.length;
+            const cyclePosition = (timestamp - scrollColorAnimationStart) / scrollPaletteDuration;
+            const currentIndex = Math.floor(cyclePosition) % paletteCount;
+            const nextIndex = (currentIndex + 1) % paletteCount;
+            const rawProgress = cyclePosition - Math.floor(cyclePosition);
+            const easedProgress = rawProgress * rawProgress * (3 - (2 * rawProgress));
+            const fromColor = new THREE.Color(scrollColorPalettes[currentIndex]);
+            const toColor = new THREE.Color(scrollColorPalettes[nextIndex]);
+
+            scrollModelMaterials.forEach((material) => {
+                material.color.lerpColors(fromColor, toColor, easedProgress);
+                material.needsUpdate = true;
+            });
+        }
+
+        function startScrollGlbAnimationLoop() {
+            if (scrollGlbAnimationFrame) return;
+
+            const animateScrollGlb = (timestamp) => {
+                if (!scrollGlbViewer || !scrollGlbViewer.isConnected || !scrollRenderer) {
+                    scrollGlbAnimationFrame = null;
+                    return;
+                }
+
+                updateScrollPartColors(timestamp);
+                updateScrollGlbRotation();
+                scrollGlbAnimationFrame = requestAnimationFrame(animateScrollGlb);
+            };
+
+            scrollGlbAnimationFrame = requestAnimationFrame(animateScrollGlb);
+        }
 
         function initScrollGlbViewer() {
             if (!scrollGlbViewer || !window.THREE) return;
@@ -1104,9 +1684,9 @@
             const height = scrollGlbViewer.clientHeight || 500;
             scrollScene = new THREE.Scene();
             scrollCamera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            scrollRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            scrollRenderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true });
             scrollRenderer.setSize(width, height);
-            scrollRenderer.setPixelRatio(window.devicePixelRatio || 1);
+            scrollRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
             scrollGlbViewer.appendChild(scrollRenderer.domElement);
 
             scrollScene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
@@ -1118,31 +1698,28 @@
             scrollScene.add(scrollModelGroup);
 
             const loader = new THREE.GLTFLoader();
-            loader.load('GLB/full set.glb', (gltf) => {
+            loader.load(`GLB/Guitar body Preview for checkout.glb?v=${glbAssetVersion}`, (gltf) => {
                 const model = gltf.scene;
-                model.traverse((child) => {
-                    if (!child.isMesh) return;
-                    child.material = new THREE.MeshStandardMaterial({
-                        color: 0xf5f2f0,
-                        metalness: 0.08,
-                        roughness: 0.52
-                    });
-                });
+                setupScrollPartMaterials(model);
                 scrollModelGroup.add(model);
                 fitModelToView(model, scrollCamera);
                 scrollCameraRadius = Math.hypot(scrollCamera.position.x, scrollCamera.position.z);
                 scrollCameraHeight = scrollCamera.position.y;
                 scrollModelGroup.rotation.set(Math.PI / 248, 0, 0);
                 updateScrollGlbRotation();
+                startScrollGlbAnimationLoop();
             });
         }
 
         function updateScrollGlbRotation() {
             if (!scrollRenderer || !scrollScene || !scrollCamera || !scrollModelGroup) return;
 
-            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-            const scrollProgress = maxScroll > 0 ? Math.max(0, Math.min(1, window.scrollY / maxScroll)) : 0;
-            const angle = scrollProgress * Math.PI * 2;
+            const cardRect = scrollGlbCard ? scrollGlbCard.getBoundingClientRect() : null;
+            const viewportCenter = window.innerHeight / 2;
+            const cardCenter = cardRect ? cardRect.top + (cardRect.height / 2) : viewportCenter;
+            const travel = cardRect ? Math.max(window.innerHeight + cardRect.height, 1) / 2 : 1;
+            const centeredProgress = Math.max(-1, Math.min(1, (viewportCenter - cardCenter) / travel));
+            const angle = centeredProgress * Math.PI;
             const radius = scrollCameraRadius || Math.hypot(scrollCamera.position.x, scrollCamera.position.z) || 120;
 
             scrollCamera.position.set(Math.sin(angle) * radius, scrollCameraHeight, Math.cos(angle) * radius);
@@ -1160,10 +1737,27 @@
             updateScrollGlbRotation();
         }
 
-        initScrollGlbViewer();
-        window.addEventListener('scroll', () => requestAnimationFrame(updateScrollGlbRotation));
-        window.addEventListener('resize', resizeScrollGlbViewer);
-        updateScrollGlbRotation();
+        const scrollGlbCard = document.getElementById('scroll-animation-card');
+        let scrollGlbStarted = false;
+        function startScrollGlbViewer() {
+            if (scrollGlbStarted) return;
+            scrollGlbStarted = true;
+            initScrollGlbViewer();
+            window.addEventListener('scroll', () => requestAnimationFrame(updateScrollGlbRotation));
+            window.addEventListener('resize', resizeScrollGlbViewer);
+            updateScrollGlbRotation();
+        }
+
+        if ('IntersectionObserver' in window && scrollGlbCard) {
+            const scrollGlbObserver = new IntersectionObserver((entries, observerInstance) => {
+                if (!entries.some(entry => entry.isIntersecting)) return;
+                startScrollGlbViewer();
+                observerInstance.disconnect();
+            }, { rootMargin: isMobileViewport() ? '80px' : '220px' });
+            scrollGlbObserver.observe(scrollGlbCard);
+        } else {
+            startScrollGlbViewer();
+        }
 
         /* ==========================================
            3. INDIVIDUAL CUSTOMIZE PART PREVIEWS
@@ -1179,9 +1773,9 @@
             const height = viewer.clientHeight || card.clientHeight || 240;
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            const renderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true });
             renderer.setSize(width, height);
-            renderer.setPixelRatio(window.devicePixelRatio || 1);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
             viewer.appendChild(renderer.domElement);
 
             scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
@@ -1206,6 +1800,7 @@
                 });
                 group.add(model);
                 fitModelToView(model, camera);
+                renderer.render(scene, camera);
             });
 
             function resize() {
@@ -1238,7 +1833,7 @@
                 preview.group.rotation.y += 0.008;
                 preview.renderer.render(preview.scene, preview.camera);
             });
-            requestAnimationFrame(renderIndividualPartPreviews);
+            if (!shouldReduceMotion()) requestAnimationFrame(renderIndividualPartPreviews);
         }
 
         const spinningAnimationCard = document.getElementById('spinning-animation-card');
@@ -1259,7 +1854,7 @@
            4. STEP 5: SCROLL REVEAL OBSERVER
            ========================================== */
         const revealElements = document.querySelectorAll('.reveal-on-scroll');
-        
+
         const revealObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -1267,9 +1862,9 @@
                     revealObserver.unobserve(entry.target);
                 }
             });
-        }, { 
-            threshold: 0.15, 
-            rootMargin: "0px 0px -50px 0px" 
+        }, {
+            threshold: 0.15,
+            rootMargin: "0px 0px -50px 0px"
         });
 
         revealElements.forEach(el => revealObserver.observe(el));
@@ -1283,6 +1878,7 @@
 
     </script>
     <script src="site-config.js"></script>
+    <script src="header-controls.js"></script>
     <script src="homepage-text.js"></script>
     <script src="cart-badge.js"></script>
 </body>

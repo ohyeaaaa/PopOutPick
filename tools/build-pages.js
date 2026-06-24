@@ -9,16 +9,12 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const rootFiles = [
     'index.html',
     'configurator.html',
-    'PopOutPick-payment.html',
     'style.css',
     'script.js',
     'site-config.js',
+    'header-controls.js',
     'cart-badge.js',
-    'homepage-text.js',
-    'admin.html',
-    'admin.css',
-    'admin.js',
-    'PayNOW QR code.jpg'
+    'homepage-text.js'
 ];
 
 const assetDirs = [
@@ -26,10 +22,61 @@ const assetDirs = [
     'Picture'
 ];
 
+const assetDirExtensions = new Map([
+    ['GLB', new Set(['.glb'])],
+    ['Picture', new Set(['.gif', '.jpg', '.jpeg', '.mp4', '.png', '.svg', '.webp'])]
+]);
+
 const selectedFiles = [
     'PopOutPick_Website/guitar-icon.png',
     'PopOutPick_Website/bass-icon.png'
 ];
+
+const directoryAliases = [
+    { source: 'admin', target: 'hotcheeks', extensions: new Set(['.css', '.html', '.js']) }
+];
+
+const forbiddenRootPaths = new Set([
+    '.env',
+    'TELEGRAM.txt',
+    'server.js',
+    'database/supabase-setup.sql',
+    'integrations/google-app-script.gs',
+    'PopOutPick-payment.html',
+    'docs',
+    'tools',
+    'data',
+    'logs',
+    'certs',
+    '.git'
+]);
+
+const forbiddenNames = new Set([
+    '.env',
+    '.git',
+    'TELEGRAM.txt',
+    'docs',
+    'database',
+    'integrations',
+    'server.js',
+    'supabase-setup.sql',
+    'google-app-script.gs',
+    'PopOutPick-payment.html',
+    'admin.html'
+]);
+
+const forbiddenExtensions = new Set([
+    '.crt',
+    '.csr',
+    '.key',
+    '.pem',
+    '.ps1',
+    '.sql'
+]);
+
+function toPosixPath(relativePath) {
+    return relativePath.split(path.sep).join('/');
+}
 
 function copyFile(relativePath) {
     const source = path.join(ROOT_DIR, relativePath);
@@ -39,18 +86,26 @@ function copyFile(relativePath) {
     fs.copyFileSync(source, target);
 }
 
-function copyDir(relativePath) {
+function copyDir(relativePath, targetRelativePath = relativePath, allowedExtensionsOverride = null) {
     const sourceDir = path.join(ROOT_DIR, relativePath);
-    const targetDir = path.join(DIST_DIR, relativePath);
+    const targetDir = path.join(DIST_DIR, targetRelativePath);
     if (!fs.existsSync(sourceDir)) return;
 
     fs.readdirSync(sourceDir, { withFileTypes: true }).forEach(entry => {
         const source = path.join(sourceDir, entry.name);
         const target = path.join(targetDir, entry.name);
+        const nextRelativePath = path.join(relativePath, entry.name);
+        const nextTargetRelativePath = path.join(targetRelativePath, entry.name);
+        const rootDir = nextRelativePath.split(path.sep)[0];
+
         if (entry.isDirectory()) {
-            copyDir(path.join(relativePath, entry.name));
+            copyDir(nextRelativePath, nextTargetRelativePath, allowedExtensionsOverride);
             return;
         }
+
+        const allowedExtensions = allowedExtensionsOverride || assetDirExtensions.get(rootDir);
+        const extension = path.extname(entry.name).toLowerCase();
+        if (allowedExtensions && !allowedExtensions.has(extension)) return;
 
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.copyFileSync(source, target);
@@ -70,28 +125,41 @@ function assertNotCopied(relativePath) {
     }
 }
 
+function walkDist(relativePath = '') {
+    const dir = path.join(DIST_DIR, relativePath);
+    if (!fs.existsSync(dir)) return [];
+
+    return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+        const childRelativePath = path.join(relativePath, entry.name);
+        if (entry.isDirectory()) return [childRelativePath, ...walkDist(childRelativePath)];
+        return [childRelativePath];
+    });
+}
+
+function assertSafeDistArtifact() {
+    forbiddenRootPaths.forEach(assertNotCopied);
+
+    for (const relativePath of walkDist()) {
+        const normalized = toPosixPath(relativePath);
+        const parts = normalized.split('/');
+        const extension = path.posix.extname(normalized).toLowerCase();
+
+        if (parts.some(part => forbiddenNames.has(part)) || forbiddenExtensions.has(extension)) {
+            throw new Error(`Forbidden artifact found in dist: ${normalized}`);
+        }
+    }
+}
+
 removeDir(DIST_DIR);
 fs.mkdirSync(DIST_DIR, { recursive: true });
 
 rootFiles.forEach(copyFile);
-assetDirs.forEach(copyDir);
+assetDirs.forEach(dir => copyDir(dir));
+directoryAliases.forEach(alias => copyDir(alias.source, alias.target, alias.extensions));
 selectedFiles.forEach(copyFile);
 
 fs.writeFileSync(path.join(DIST_DIR, '.nojekyll'), '');
 
-[
-    '.env',
-    'TELEGRAM.txt',
-    'server.js',
-    'supabase-setup.sql',
-    'google-app-script.gs',
-    'NOTIFICATIONS.md',
-    'HOSTING.md',
-    'tools',
-    'data',
-    'logs',
-    'certs',
-    '.git'
-].forEach(assertNotCopied);
+assertSafeDistArtifact();
 
 console.log(`GitHub Pages artifact built at ${DIST_DIR}`);
