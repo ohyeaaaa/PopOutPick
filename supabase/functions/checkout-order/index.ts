@@ -17,7 +17,7 @@ const COMMERCE_CONFIG = {
     meetupShippingPrice: 0,
     deliveryShippingPrice: 2.6,
     shopProducts: [
-        { id: 'custom-pick-holder', name: 'Custom Pick Holder', description: 'Replacement pick holder module', price: 1, previewPart: 'module' },
+        { id: 'custom-pick-holder', name: 'Pick holder module', description: 'Replacement pick holder module', price: 1, previewPart: 'module' },
         { id: 'slider', name: 'Slider', description: 'Replacement slider for both Guitar and Bass PopOutPick sets', price: 1, previewPart: 'slider' },
         { id: 'top-plate', name: 'Top Plate', description: 'Replacement top plate', price: 1, previewPart: 'top' },
         { id: 'base-plate', name: 'Base Plate', description: 'Replacement base plate', price: 1, previewPart: 'bottom' },

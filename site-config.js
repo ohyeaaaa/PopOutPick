@@ -43,7 +43,7 @@ window.POPOUTPICK_CONFIG = {
         shopProducts: [
             {
                 id: "custom-pick-holder",
-                name: "Custom Pick Holder",
+                name: "Pick holder module",
                 description: "Replacement pick holder module",
                 price: 1,
                 previewPart: "module",
