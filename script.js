@@ -1915,7 +1915,7 @@ function createCartItemFromCurrentDesign() {
     return {
         id: `${Date.now()}-${checkoutState.cartItems.length}`,
         type: 'configured-design',
-        productId: 'custom-popoutpick',
+        productId: null,
         name: getConfiguredProductName(snapshot),
         description: getConfiguredProductDescription(snapshot),
         selections: snapshot,
@@ -2681,7 +2681,7 @@ function buildOrderPayload() {
         items: checkoutState.cartItems.map((item) => ({
             id: item.id,
             type: item.type || 'configured-design',
-            productId: item.productId || null,
+            productId: item.type === 'shop-product' ? (item.productId || null) : null,
             name: item.name,
             description: item.description,
             quantity: item.quantity,
@@ -2905,6 +2905,13 @@ async function submitCheckoutOrderToApi(payload, files) {
     return { skipped: false, files, server: data };
 }
 
+function getCheckoutSubmissionErrorMessage(error) {
+    const fallback = getCheckoutText('orderSubmissionError', 'Order submission failed. Please try again or contact us with your order details.');
+    const details = error?.message ? String(error.message).trim() : '';
+    if (!details || details === fallback) return fallback;
+    return `${fallback} ${details}`;
+}
+
 async function submitOrderToSupabase(payload) {
     const files = collectCheckoutFilesForApi();
     return submitCheckoutOrderToApi(payload, files);
@@ -2994,7 +3001,7 @@ async function checkoutHandleConfirm() {
         console.error('Order Supabase submission failed', error);
         checkoutState.confirmed = false;
         checkoutState.isSubmitting = false;
-        checkoutState.submissionStatus = { phase: 'error', message: getCheckoutText('supabaseTestError', 'Supabase submission failed. Check your setup and try again.') };
+        checkoutState.submissionStatus = { phase: 'error', message: getCheckoutSubmissionErrorMessage(error) };
     }
 
     buildCheckout();

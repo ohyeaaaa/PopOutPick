@@ -286,7 +286,8 @@ window.POPOUTPICK_CONFIG = {
             },
             missingSupabaseMessage: "Supabase is not configured yet.",
             supabaseTestSuccess: "Test order saved in Supabase.",
-            supabaseTestError: "Supabase test failed. Check your project URL, anon key, and RLS policies."
+            supabaseTestError: "Supabase test failed. Check your project URL, anon key, and RLS policies.",
+            orderSubmissionError: "Order submission failed. Please try again or contact us with your order details."
         },
 
         timeline: {

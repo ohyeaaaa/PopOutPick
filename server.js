@@ -1335,7 +1335,7 @@ function canonicalizeCheckoutItem(value, index) {
     const itemId = createCanonicalItemId(item.id, index);
     const productId = cleanText(item.productId, 120);
 
-    if (cleanText(item.type, 40) === 'shop-product' || productId) {
+    if (cleanText(item.type, 40) === 'shop-product') {
         const product = getShopProductById(productId);
         assertCheckout(product, `Unknown shop product: ${productId || 'blank'}.`);
 
