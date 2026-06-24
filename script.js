@@ -567,19 +567,7 @@ function getDesignTexture(key) {
 }
 
 function getPartMat(key) {
-    const texture = getDesignTexture(key);
-    if (!texture) return getMat(selections[key]);
-
-    const mat = new THREE.MeshStandardMaterial({
-        color: selections[key],
-        map: texture,
-        roughness: 0.5,
-        transparent: false,
-        alphaTest: 0.05,
-        side: THREE.DoubleSide
-    });
-    mat.userData = { c1: selections[key], c2: selections[key], split: false };
-    return mat;
+    return getMat(selections[key]);
 }
 
 function getSnapshotDesignTexture(snapshot, key) {
@@ -599,19 +587,7 @@ function getSnapshotDesignTexture(snapshot, key) {
 }
 
 function getSnapshotPartMat(snapshot, key) {
-    const texture = getSnapshotDesignTexture(snapshot, key);
-    if (!texture) return getMat(snapshot[key]);
-
-    const mat = new THREE.MeshStandardMaterial({
-        color: snapshot[key],
-        map: texture,
-        roughness: 0.5,
-        transparent: false,
-        alphaTest: 0.05,
-        side: THREE.DoubleSide
-    });
-    mat.userData = { c1: snapshot[key], c2: snapshot[key], split: false };
-    return mat;
+    return getMat(snapshot[key]);
 }
 
 function getMat(c1, c2, split = false) {
@@ -1113,8 +1089,6 @@ function render() {
         // Render Injected Content for normal steps
         const activeKey = keys[currentStep];
         syncPreviewContrast(activeKey);
-        const activePreviewUsesWhite = !isWhiteColor(selections[activeKey]);
-        const activePreviewUsesDark = isWhiteColor(selections[activeKey]);
         let html = `<h1>${escapeHtml(titles[currentStep-1])}</h1>`;
         html += `<div class="label-caps">${escapeHtml(getText('normalSteps.colorLabel', 'COLOR'))}</div><div class="color-grid" id="gc"></div>`;
         if (designPartKeys.includes(activeKey)) {
@@ -1134,7 +1108,7 @@ function render() {
             if (isDesignEnabled) {
                 html += `
                     <div class="label-caps">${escapeHtml(getText('normalSteps.previewLabel', '2D PREVIEW'))}</div>
-                    <div class="design-preview-box design-upload-dropzone ${activePreviewUsesWhite ? 'preview-contrast-white' : ''} ${activePreviewUsesDark ? 'preview-contrast-dark' : ''}" style="background:${activePreviewUsesWhite ? '#ffffff' : activePreviewUsesDark ? '#0b0807' : selections[activeKey]};" onclick="triggerDesignUpload(event, '${activeKey}')" ondragover="handleDesignDragOver(event)" ondragleave="handleDesignDragLeave(event)" ondrop="handleDesignDrop(event, '${activeKey}')">
+                    <div class="design-preview-box design-upload-dropzone ${isWhiteColor(selections[activeKey]) ? 'preview-contrast-light-part' : ''} ${isBlackColor(selections[activeKey]) ? 'preview-contrast-dark-part' : ''}" style="background:${selections[activeKey]};" onclick="triggerDesignUpload(event, '${activeKey}')" ondragover="handleDesignDragOver(event)" ondragleave="handleDesignDragLeave(event)" ondrop="handleDesignDrop(event, '${activeKey}')">
                         <input id="design-upload-${activeKey}" class="design-upload-input" type="file" accept="image/*" onchange="handleDesignUpload(event, '${activeKey}')">
                         ${previewSrc
                             ? `<img id="design-preview-image-${activeKey}" class="design-preview-image" src="${previewSrc}" alt="${escapeHtml(getText('normalSteps.previewAlt', 'Uploaded custom design preview'))}" style="left:calc(50% + ${transform.x}px); top:calc(50% + ${transform.y}px); transform:translate(-50%, -50%) scale(${transform.scale / 100});" onpointerdown="startDesignDrag(event, '${activeKey}')">`

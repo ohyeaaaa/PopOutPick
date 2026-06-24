@@ -745,6 +745,12 @@ textarea {
     border-radius: 14px;
     pointer-events: none;
 }
+.design-preview-box.preview-contrast-light-part::before {
+    border-color: rgba(0,0,0,0.22);
+}
+.design-preview-box.preview-contrast-dark-part::before {
+    border-color: rgba(255,255,255,0.28);
+}
 .design-preview-image {
     position: absolute;
     display: block;
@@ -928,6 +934,12 @@ textarea {
     font-size: var(--font-footerIndicator);
     font-weight: 800;
     letter-spacing: 1.4px;
+}
+.design-preview-box.preview-contrast-light-part .design-preview-empty {
+    color: rgba(0, 0, 0, 0.62);
+}
+.design-preview-box.preview-contrast-dark-part .design-preview-empty {
+    color: rgba(255, 255, 255, 0.74);
 }
 .cart-action-status {
     color: var(--brand-green);
@@ -2611,7 +2623,6 @@ textarea:focus,
 #main-3d-viewport,
 #holder-3d-viewport,
 .preview-box-large,
-.design-preview-box,
 .shop-part-preview,
 .slot-card.preview-contrast-white,
 .preview-contrast-white {
