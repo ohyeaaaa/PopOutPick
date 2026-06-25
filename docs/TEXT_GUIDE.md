@@ -63,7 +63,7 @@ Recommended CSS:
 These are generated in `script.js`:
 
 ```js
-const titles = ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bottom Plate"];
+const titles = ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Base Plate"];
 ```
 
 | Text | Where to change | Size/style controlled by |
@@ -73,14 +73,14 @@ const titles = ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bot
 | `Module` | `script.js` | `h1` styling in `style.css` if added |
 | `Slider` | `script.js` | `h1` styling in `style.css` if added |
 | `Top Plate` | `script.js` | `h1` styling in `style.css` if added |
-| `Bottom Plate` | `script.js` | `h1` styling in `style.css` if added |
+| `Base Plate` | `script.js` | `h1` styling in `style.css` if added |
 
 ## Progress Bar Labels
 
 These are generated in `script.js`:
 
 ```js
-const labels = ['Type', 'Body', 'Pickholders', 'Module', 'Slider', 'Top Plate', 'Bottom Plate'];
+const labels = ['Type', 'Body', 'Pickholders', 'Module', 'Slider', 'Top Plate', 'Base Plate'];
 ```
 
 Size controlled by:

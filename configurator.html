@@ -28,9 +28,6 @@
             <button class="icon-btn" aria-label="Telegram" type="button">
                 <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </button>
-            <button class="icon-btn" aria-label="Search" type="button" style="margin-left: 8px;">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            </button>
             <button class="icon-btn" onclick="window.location.href='configurator.html#checkout-box';" aria-label="Cart" type="button">
                 <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
                 <span class="cart-badge" id="site-cart-count">0</span>
@@ -74,9 +71,9 @@
             <div class="split-layout pickholder-layout">
                 <!-- Left: 3D Preview + color controls -->
                 <div class="holder-preview-column">
-                    <div id="holder-3d-viewport" style="width:600px; height:600px; background:#f2f0ed; border-radius:35px; overflow:hidden; position:relative; flex-shrink:0;">
+                    <div id="holder-3d-viewport" style="width:min(100%, 600px); aspect-ratio:1 / 1; background:#f2f0ed; border-radius:35px; overflow:hidden; position:relative; flex-shrink:0;">
                         <div class="viewer-controls">
-                            <button class="ctrl-btn active" id="btn-rotate-holder" onclick="toggleHolderRotate()" data-text-key="symbols.rotate">🔄</button>
+                            <button class="ctrl-btn active" id="btn-rotate-holder" onclick="toggleHolderRotate()" title="Click to stop rotating" aria-label="Click to stop rotating" data-text-key="symbols.rotate">🔄</button>
                         </div>
                     </div>
                     <div id="step-3-colors-below-preview" class="holder-colors-under-preview"></div>
@@ -97,7 +94,7 @@
             <div class="split-layout">
                 <div id="main-3d-viewport">
                     <div class="viewer-controls">
-                        <button class="ctrl-btn active" id="btn-rotate" onclick="toggleRotate()" data-text-key="symbols.rotate">🔄</button>
+                        <button class="ctrl-btn active" id="btn-rotate" onclick="toggleRotate()" title="Click to stop rotating" aria-label="Click to stop rotating" data-text-key="symbols.rotate">🔄</button>
                     </div>
                 </div>
                 <div class="controls-column" id="step-controls-injected">

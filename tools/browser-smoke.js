@@ -306,7 +306,6 @@ async function runPage(client, scenario) {
                 .slice(0, 8);
             const text = selector => document.querySelector(selector)?.innerText || '';
             const menuButton = document.querySelector('.menu-btn, .icon-btn[aria-label="Menu"]');
-            const searchButton = document.querySelector('.icon-btn[aria-label="Search"]');
             const telegramButton = document.querySelector('.icon-btn[aria-label^="Telegram"], .icon-btn[aria-label^="Add Telegram"]');
             let mobileMenuLinkCount = 0;
             if (menuButton && window.innerWidth < 700) {
@@ -339,7 +338,6 @@ async function runPage(client, scenario) {
                 },
                 headerControls: {
                     menu: Boolean(menuButton?.getAttribute('aria-controls')),
-                    search: Boolean(searchButton?.getAttribute('aria-controls')),
                     telegram: Boolean(telegramButton),
                     mobileMenuLinkCount
                 },
@@ -391,7 +389,7 @@ function assertResult(result) {
             problems.push(`final review assembly did not load enough objects: ${result.metrics.finalReview?.assemblyChildren}`);
         }
     }
-    if (!result.metrics.headerControls?.menu || !result.metrics.headerControls?.search || !result.metrics.headerControls?.telegram) {
+    if (!result.metrics.headerControls?.menu || !result.metrics.headerControls?.telegram) {
         problems.push('header controls are not wired');
     }
     if (result.viewport.startsWith('390x') && result.metrics.headerControls.mobileMenuLinkCount < 4) {

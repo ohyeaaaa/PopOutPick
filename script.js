@@ -938,6 +938,7 @@ function render() {
     nextButton.onclick = isShopDetail ? addActiveShopProductToCart : (currentStep === 8 ? addToCart : () => changeStep(1));
 
     const activeSet = glbModels[selections.type];
+    const shopDetailProduct = isShopDetail ? getShopProductById(activeShopProductId) : null;
     syncPreviewContrast();
 
     if (currentStep === 1) {
@@ -994,7 +995,6 @@ function render() {
         buildBreakdown();
     } else if (currentStep === 3) {
         document.getElementById('step-3').classList.add('active');
-        const shopDetailProduct = isShopDetail ? getShopProductById(activeShopProductId) : null;
         const isShopHolderDetail = isShopDetail && isShopHolderProduct(shopDetailProduct);
         
         // 1. Inject Left Slots Grid dynamically with unique canvas viewport containers
@@ -1035,15 +1035,17 @@ function render() {
         <div style="display:flex; align-items:center; gap:14px; margin-top:20px; margin-bottom:18px;">
             <div class="pickholder-number" style="background:${slotBg};">#${activeSlot+1}</div>
             <div>
-                <div class="pickholder-title">${escapeHtml(formatText(getText('pickholders.itemTitle', 'Pickholder {number}'), { number: activeSlot + 1 }))}</div>
-                <div class="pickholder-helper">${escapeHtml(getText('pickholders.helper', 'Configure the thickness and color for this slot'))}</div>
+                <div class="pickholder-title">${escapeHtml(isShopHolderDetail ? shopDetailProduct.name : formatText(getText('pickholders.itemTitle', 'Pickholder {number}'), { number: activeSlot + 1 }))}</div>
+                <div class="pickholder-helper">${escapeHtml(isShopHolderDetail ? shopDetailProduct.description : getText('pickholders.helper', 'Configure the thickness and color for this slot'))}</div>
             </div>
         </div>`;
 
+        if (isShopHolderDetail && shouldShopProductChooseType(shopDetailProduct)) {
+            html += renderShopTypeSelector(shopDetailProduct);
+        }
+
         const fixedHolderThickness = isShopHolderDetail ? getShopHolderThickness(shopDetailProduct) : null;
-        const thicknessOptions = fixedHolderThickness ? [fixedHolderThickness] : selections.type === 'bass'
-            ? ['30mm', '20mm', '10mm', '8mm', '6mm']
-            : ['10mm', '8mm', '7mm', '6mm'];
+        const thicknessOptions = fixedHolderThickness ? [fixedHolderThickness] : getHolderThicknessOptions(selections.type);
 
         html += `<div class="label-caps">${escapeHtml(getText('pickholders.thicknessLabel', 'THICKNESS'))}</div>
         <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-bottom:10px;">
@@ -1068,6 +1070,7 @@ function render() {
         // Sync the rotate button to current state
         const rotBtn = document.getElementById('btn-rotate-holder');
         if (rotBtn) rotBtn.classList.toggle('active', isHolderRotating);
+        updateRotateButtonLabel('btn-rotate-holder', isHolderRotating);
 
         const size = selections.holders[activeSlot].t;
         if (size !== 'Empty') {
@@ -1080,10 +1083,13 @@ function render() {
         }
     } else {
         const ctrl = document.getElementById('step-controls-injected');
-        const titles = getText('normalSteps.titles', ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bottom Plate"]);
+        const titles = getText('normalSteps.titles', ["", "Body", "Pickholders", "Pick Holder Module", "Slider", "Top Plate", "Base Plate"]);
 
         initEngine('main-3d-viewport');
         clearScene();
+        const rotBtn = document.getElementById('btn-rotate');
+        if (rotBtn) rotBtn.classList.toggle('active', isRotating);
+        updateRotateButtonLabel('btn-rotate', isRotating);
 
         const files = [
             "", 
@@ -1111,7 +1117,10 @@ function render() {
         // Render Injected Content for normal steps
         const activeKey = keys[currentStep];
         syncPreviewContrast(activeKey);
-        let html = `<h1>${escapeHtml(titles[currentStep-1])}</h1>`;
+        let html = `<h1>${escapeHtml(isShopDetail && shopDetailProduct?.name ? shopDetailProduct.name : titles[currentStep-1])}</h1>`;
+        if (isShopDetail && shouldShopProductChooseType(shopDetailProduct)) {
+            html += renderShopTypeSelector(shopDetailProduct);
+        }
         html += `<div class="label-caps">${escapeHtml(getText('normalSteps.colorLabel', 'COLOR'))}</div><div class="color-grid" id="gc"></div>`;
         if (designPartKeys.includes(activeKey)) {
             const addOnKeys = getDesignAddOnKeysForPart(activeKey);
@@ -1179,6 +1188,41 @@ function renderDesignColorGrid(partKey) {
         </div>`;
 }
 
+function shouldShopProductChooseType(product) {
+    return !!product && product.previewPart !== 'slider';
+}
+
+function getHolderThicknessOptions(type = selections.type) {
+    return type === 'bass'
+        ? ['30mm', '20mm', '10mm', '8mm', '6mm']
+        : ['10mm', '8mm', '7mm', '6mm'];
+}
+
+function getDefaultHolderThicknessForType(type = selections.type) {
+    return getHolderThicknessOptions(type)[0] || '10mm';
+}
+
+function renderShopTypeSelector(product = null) {
+    const options = [
+        { value: 'guitar', label: getText('step1.guitarTitle', 'Guitar') },
+        { value: 'bass', label: getText('step1.bassTitle', 'Bass') }
+    ];
+    const label = product?.shopPartType === 'holder'
+        ? getText('normalSteps.pickHolderTypeLabel', 'TYPE')
+        : getText('normalSteps.moduleTypeLabel', 'TYPE');
+
+    return `
+        <div class="module-type-selector" aria-label="Choose ${escapeHtml(product?.name || 'shop part')} type">
+            <div class="label-caps">${escapeHtml(label)}</div>
+            <div class="module-type-options">
+                ${options.map(option => `
+                    <button class="module-type-option ${selections.type === option.value ? 'selected' : ''}" type="button" onclick="setShopProductType('${option.value}')">
+                        ${escapeHtml(option.label)}
+                    </button>`).join('')}
+            </div>
+        </div>`;
+}
+
 function getColorName(color) {
     const names = {
         '#1a1a1a': 'Black',
@@ -1222,10 +1266,10 @@ function buildBreakdown() {
 
     const parts = [
         { name: getText('summary.body', 'Body'), step: 2, swatch: selections.body, details: [renderColorDetail(colorLabel, selections.body)] },
-        { name: getText('summary.module', 'Module'), step: 4, swatch: selections.module, details: [renderColorDetail(colorLabel, selections.module)] },
+        { name: getText('summary.module', 'Pick Holder Module'), step: 4, swatch: selections.module, details: [renderColorDetail(colorLabel, selections.module)] },
         { name: getText('summary.slider', 'Slider'), step: 5, swatch: selections.slider, details: getDesignDetails('slider') },
         { name: getText('summary.top', 'Top Plate'), step: 6, swatch: selections.top, details: getDesignDetails('top') },
-        { name: getText('summary.bottom', 'Bottom Plate'), step: 7, swatch: selections.bottom, details: getDesignDetails('bottom') }
+        { name: getText('summary.bottom', 'Base Plate'), step: 7, swatch: selections.bottom, details: getDesignDetails('bottom') }
     ];
 
     selections.holders.forEach((holder, index) => {
@@ -1323,7 +1367,7 @@ function getShopProductPreviewSpec(product) {
     const previewPart = product?.previewPart;
     if (!previewPart) return null;
 
-    const type = product.previewType || selections.type || 'guitar';
+    const type = product.selectedPreviewType || product.previewType || 'guitar';
     const activeSet = glbModels[type] || glbModels.guitar;
     const partKey = previewPart === 'base' ? 'bottom' : previewPart;
     const color = product.previewColor || '#ffffff';
@@ -1340,7 +1384,9 @@ function getShopProductPreviewSpec(product) {
         };
     }
 
-    const holderThickness = partKey.replace(/^holder:/, '');
+    const holderThickness = product.shopPartType === 'holder'
+        ? getDefaultHolderThicknessForType(type)
+        : partKey.replace(/^holder:/, '');
     if (activeSet.holders?.[holderThickness]) {
         return {
             file: activeSet.holders[holderThickness],
@@ -1457,12 +1503,16 @@ function createCartItemFromShopProduct(product) {
     const selectedAddOns = partKey ? getSelectedDesignAddOns(selections).filter(addOn => addOn.partKey === partKey) : [];
     const addOnTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.price, 0);
     const details = [];
+    const selectedType = product.previewType || selections.type;
+    const typeLabel = selectedType ? selectedType.charAt(0).toUpperCase() + selectedType.slice(1) : '';
 
     if (holderSnapshot) {
+        if (typeLabel) details.push(`Type: ${typeLabel}`);
         details.push(`${getText('finalReview.thicknessLabel', 'Thickness')}: ${holderSnapshot.t}`);
         details.push(`${getText('finalReview.bodyColorLabel', 'Body color')}: ${getColorName(holderSnapshot.c1)}`);
         details.push(`${getText('finalReview.numberColorLabel', 'Number color')}: ${getColorName(holderSnapshot.c2)}`);
     } else if (partKey && selections[partKey]) {
+        if (shouldShopProductChooseType(product) && typeLabel) details.push(`Type: ${typeLabel}`);
         details.push(`${getText('finalReview.colorLabel', 'Color')}: ${getColorName(selections[partKey])}`);
     }
     selectedAddOns.forEach((addOn) => {
@@ -1485,7 +1535,7 @@ function createCartItemFromShopProduct(product) {
         addOns: selectedAddOns,
         partKey,
         holder: holderSnapshot,
-        previewType: product.previewType || selections.type,
+        previewType: selectedType,
         partColor: partKey ? selections[partKey] : null,
         designImage: partKey ? selections.designImages?.[partKey] : null,
         designFileName: partKey ? selections.designFileNames?.[partKey] : null,
@@ -1516,13 +1566,16 @@ function openShopProductDetail(productId) {
     checkoutState.addedToCart = false;
     checkoutState.started = false;
     currentStep = step;
+    if (shouldShopProductChooseType(product)) {
+        selections.type = product.previewType || selections.type || 'guitar';
+        normalizeHolderThicknessesForType(selections.type);
+    }
     if (step === 3) {
         activeSlot = 0;
-        selections.type = product.previewType || selections.type;
-        normalizeHolderThicknessesForType(selections.type);
-        const holderThickness = getShopHolderThickness(product)
-            || (product.previewPart?.startsWith('holder:') ? product.previewPart.replace('holder:', '') : null);
-        if (holderThickness) selections.holders[activeSlot].t = holderThickness;
+        const holderThickness = getShopHolderThickness(product);
+        selections.holders[activeSlot].t = holderThickness && getHolderThicknessOptions(selections.type).includes(holderThickness)
+            ? holderThickness
+            : getDefaultHolderThicknessForType(selections.type);
     }
     render();
 }
@@ -3058,7 +3111,7 @@ async function checkoutHandleConfirm() {
 }
 
 function updateTimeline() {
-    const labels = getText('timeline.labels', ['Type', 'Body', 'Pickholders', 'Module', 'Slider', 'Top Plate', 'Bottom Plate', 'Final Review']);
+    const labels = getText('timeline.labels', ['Type', 'Body', 'Pickholders', 'Module', 'Slider', 'Top Plate', 'Base Plate', 'Final Review']);
     const container = document.getElementById('timeline');
     container.innerHTML = '';
     labels.forEach((l, i) => {
@@ -3075,13 +3128,24 @@ function updateTimeline() {
 
 function toggleRotate() { 
     isRotating = !isRotating; 
-    document.getElementById('btn-rotate').classList.toggle('active', isRotating); 
+    const btn = document.getElementById('btn-rotate');
+    if (btn) btn.classList.toggle('active', isRotating);
+    updateRotateButtonLabel('btn-rotate', isRotating);
 }
 
 function toggleHolderRotate() {
     isHolderRotating = !isHolderRotating;
     const btn = document.getElementById('btn-rotate-holder');
     if (btn) btn.classList.toggle('active', isHolderRotating);
+    updateRotateButtonLabel('btn-rotate-holder', isHolderRotating);
+}
+
+function updateRotateButtonLabel(buttonId, rotating) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) return;
+    const label = rotating ? 'Click to stop rotating' : 'Click to start rotating';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
 }
 
 function normalizeHolderThicknessesForType(type) {
@@ -3101,6 +3165,20 @@ function selectType(t) {
     normalizeHolderThicknessesForType(t);
     document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('selected', c.id === 'card-'+t));
     setTimeout(() => changeStep(1), 300);
+}
+
+function setShopProductType(type) {
+    if (!glbModels[type]) return;
+    const product = getShopProductById(activeShopProductId);
+    selections.type = type;
+    normalizeHolderThicknessesForType(type);
+    if (isShopHolderProduct(product)) {
+        const fixedThickness = getShopHolderThickness(product);
+        selections.holders[activeSlot].t = fixedThickness && getHolderThicknessOptions(type).includes(fixedThickness)
+            ? fixedThickness
+            : getDefaultHolderThicknessForType(type);
+    }
+    render();
 }
 
 function handleImageFile(file, handlers = {}) {

@@ -43,9 +43,9 @@ window.POPOUTPICK_CONFIG = {
         shopProducts: [
             {
                 id: "custom-pick-holder",
-                name: "Pick holder module",
+                name: "Pick Holder Module",
                 description: "Replacement pick holder module",
-                price: 1,
+                price: 0.5,
                 previewPart: "module",
                 previewZoom: 1.6,
                 icon: "",
@@ -82,33 +82,19 @@ window.POPOUTPICK_CONFIG = {
                 previewZoom: 1.35,
                 icon: "",
                 symbol: "▼"
-            }
-        ].concat([
+            },
             {
                 id: "guitar-pick-holder",
-                name: "Guitar Pick Holder",
-                description: "Replacement guitar pick holder. Choose size and colours after clicking.",
-                price: 1,
-                previewType: "guitar",
+                name: "Pick Holder",
+                description: "Replacement pick holder. Choose type, size and colours after clicking.",
+                price: 0.5,
                 previewPart: "holder:10mm",
                 shopPartType: "holder",
                 previewZoom: 1.55,
                 icon: "",
                 symbol: "#"
-            },
-            {
-                id: "bass-pick-holder",
-                name: "Bass Pick Holder",
-                description: "Replacement bass pick holder. Choose size and colours after clicking.",
-                price: 1,
-                previewType: "bass",
-                previewPart: "holder:30mm",
-                shopPartType: "holder",
-                previewZoom: 1.55,
-                icon: "",
-                symbol: "#"
             }
-        ]),
+        ],
         designAddOns: {
             slider: { label: "Add a 2D design for $2", price: 2, type: "2D" },
             top: { label: "Add a 3D design for $3", price: 3, type: "3D" },
@@ -160,7 +146,9 @@ window.POPOUTPICK_CONFIG = {
         },
 
         normalSteps: {
-            titles: ["", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bottom Plate"],
+            titles: ["", "Body", "Pickholders", "Pick Holder Module", "Slider", "Top Plate", "Base Plate"],
+            moduleTypeLabel: "TYPE",
+            pickHolderTypeLabel: "TYPE",
             colorLabel: "COLOR",
             customDesignLabel: "CUSTOM DESIGN IMAGE",
             designColorLabel: "DESIGN COLOUR",
@@ -294,7 +282,7 @@ window.POPOUTPICK_CONFIG = {
         },
 
         timeline: {
-            labels: ["Type", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Bottom Plate", "Final Review"],
+            labels: ["Type", "Body", "Pickholders", "Module", "Slider", "Top Plate", "Base Plate", "Final Review"],
             finalReview: "FINAL REVIEW",
             stepIndicator: "STEP {current} OF {total}"
         },
@@ -307,10 +295,10 @@ window.POPOUTPICK_CONFIG = {
         summary: {
             body: "Body",
             pickholders: "Pickholders",
-            module: "Module",
+            module: "Pick Holder Module",
             slider: "Slider",
             top: "Top Plate",
-            bottom: "Bottom Plate"
+            bottom: "Base Plate"
         },
 
         symbols: {
