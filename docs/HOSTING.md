@@ -174,6 +174,23 @@ The browser sends the order intent and payment/design image files to this endpoi
 
 For same-origin hosting, leave `commerce.checkoutApiUrl` blank in `site-config.js`. If the frontend is hosted somewhere else, set `commerce.checkoutApiUrl` to the backend URL above and add that frontend origin to `CHECKOUT_ALLOWED_ORIGINS` in `.env`.
 
+Public checkout should use Cloudflare Turnstile to reduce fake order submissions. Set the private values in `.env`:
+
+```text
+TURNSTILE_REQUIRED=true
+TURNSTILE_SECRET_KEY=your-turnstile-secret-key
+TURNSTILE_EXPECTED_ACTION=checkout
+```
+
+Then set the public site key in `site-config.js`:
+
+```js
+turnstile: {
+    siteKey: "your-turnstile-site-key",
+    action: "checkout"
+}
+```
+
 ## GitHub Pages
 
 Static GitHub Pages deployment is documented in `docs/GITHUB_PAGES.md`.
@@ -201,6 +218,8 @@ Only the public pages, scripts, styles, GLB files, selected images, video assets
 - Confirm RLS is enabled on all tables listed in the SQL.
 - Confirm the admin Auth user is in `public.admin_users`.
 - Set a long unique `ADMIN_PASSWORD` in `.env`.
+- Set `ADMIN_ALLOWED_IPS` for the machines allowed to access backend Basic Auth.
 - Use HTTPS.
+- Set `TURNSTILE_REQUIRED=true`, `TURNSTILE_SECRET_KEY`, and the public Turnstile site key.
 - Run `npm.cmd run preflight`.
 - Test checkout with a real order and verify files land under `order-.../design` and `order-.../payment`.

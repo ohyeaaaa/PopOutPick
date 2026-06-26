@@ -9,12 +9,17 @@
     "check": "node --check server.js && node --check admin/admin.js && node --check script.js && node --check homepage-text.js && node --check header-controls.js && node --check cart-badge.js && node --check site-config.js && node --check tools/preflight.js && node --check tools/browser-smoke.js && node --check tools/monitor.js && node --check tools/test-notification.js && node --check tools/test-file-notification.js && node --check tools/telegram-diagnose.js",
     "check:functions": "node tools/check-functions.js",
     "preflight": "node tools/preflight.js",
+    "audit:security": "npm audit --audit-level=moderate",
     "smoke:browser": "node tools/browser-smoke.js",
     "build:pages": "node tools/build-pages.js",
     "monitor": "node tools/monitor.js",
     "test-notification": "node tools/test-notification.js",
     "test-file-notification": "node tools/test-file-notification.js",
     "telegram-diagnose": "node tools/telegram-diagnose.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.108.2",
+    "three": "0.128.0"
   },
   "engines": {
     "node": ">=20"

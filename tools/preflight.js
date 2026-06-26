@@ -12,7 +12,10 @@ const port = Number.parseInt(process.env.PORT || '8080', 10);
 const host = '127.0.0.1';
 const adminUsername = process.env.ADMIN_USERNAME || '';
 const adminPassword = process.env.ADMIN_PASSWORD || '';
+const trustProxy = ['1', 'true', 'yes', 'on'].includes(String(process.env.TRUST_PROXY || '').trim().toLowerCase());
+const requireHttps = ['1', 'true', 'yes', 'on'].includes(String(process.env.REQUIRE_HTTPS || '').trim().toLowerCase());
 const serverStartupAttempts = Number.parseInt(process.env.PREFLIGHT_SERVER_ATTEMPTS || '30', 10);
+const preflightHeaders = trustProxy && requireHttps ? { 'X-Forwarded-Proto': 'https' } : {};
 
 const requiredFiles = [
     'index.html',
@@ -76,14 +79,16 @@ function request(route, headers = {}) {
             port,
             path: route,
             method: 'GET',
-            headers
+            headers: { ...preflightHeaders, ...headers }
         }, res => {
-            res.resume();
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => resolve({
                 route,
                 status: res.statusCode,
                 contentType: res.headers['content-type'] || '',
-                authenticate: res.headers['www-authenticate'] || ''
+                authenticate: res.headers['www-authenticate'] || '',
+                body: Buffer.concat(chunks).toString('utf8')
             }));
         });
 
@@ -191,6 +196,16 @@ async function main() {
 
         const health = await request('/healthz');
         passed = printCheck(health.status === 200, 'health endpoint', `status ${health.status}`) && passed;
+        if (health.status === 200) {
+            try {
+                const payload = JSON.parse(health.body || '{}');
+                if (payload.commerceFingerprint) {
+                    printCheck(true, 'commerce fingerprint', payload.commerceFingerprint);
+                }
+            } catch {
+                // Health JSON is already covered by the endpoint status check.
+            }
+        }
 
         if (!passed) process.exitCode = 1;
     } finally {

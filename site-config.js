@@ -104,6 +104,10 @@ window.POPOUTPICK_CONFIG = {
         promoCodes: [],
         enableCheckoutTestButton: false,
         quietOptionalSupabaseWarnings: true,
+        turnstile: {
+            siteKey: "0x4AAAAAADrbPSa9Igju9bPx",
+            action: "checkout"
+        },
         checkoutApiUrl: "https://jllzhecqlxzegnrqhxnc.supabase.co/functions/v1/checkout-order",
         meetupShippingPrice: 0,
         deliveryShippingPrice: 2.6,
@@ -227,6 +231,8 @@ window.POPOUTPICK_CONFIG = {
             qrTransferTo: "Transfer to: PopOutPick",
             paymentScreenshotLabel: "Upload Payment's Screen Shot",
             paymentScreenshotHelp: "Attach your bank payment confirmation screenshot.",
+            checkoutVerificationHelp: "Complete the verification before confirming your order.",
+            checkoutVerificationRequired: "Please complete the verification before confirming your order.",
             confirmButton: "I’ve Paid — Confirm Order",
             confirmSavingButton: "Saving order...",
             testSupabaseButton: "Send test order to Supabase",

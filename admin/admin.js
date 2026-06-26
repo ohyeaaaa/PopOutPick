@@ -546,7 +546,8 @@
 
     function csvCell(value) {
         const text = String(value ?? '');
-        return `"${text.replace(/"/g, '""')}"`;
+        const safeText = /^[=+\-@]/.test(text.trimStart()) ? `'${text}` : text;
+        return `"${safeText.replace(/"/g, '""')}"`;
     }
 
     function exportOrdersCsv() {

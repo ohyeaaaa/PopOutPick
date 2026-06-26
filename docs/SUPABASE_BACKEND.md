@@ -29,6 +29,9 @@ Set the project-specific secrets in Supabase Dashboard > Project Settings > Edge
 
 ```powershell
 npx.cmd supabase secrets set CHECKOUT_ALLOWED_ORIGINS=https://ohyeaaaa.github.io
+npx.cmd supabase secrets set TURNSTILE_REQUIRED=true
+npx.cmd supabase secrets set TURNSTILE_SECRET_KEY=your-turnstile-secret-key
+npx.cmd supabase secrets set TURNSTILE_EXPECTED_ACTION=checkout
 npx.cmd supabase secrets set SHOP_NAME=PopOutPick
 npx.cmd supabase secrets set TELEGRAM_BOT_TOKEN=your-bot-token
 npx.cmd supabase secrets set TELEGRAM_ADMIN_CHAT_ID=your-chat-id
@@ -36,7 +39,16 @@ npx.cmd supabase secrets set RESEND_API_KEY=your-resend-api-key
 npx.cmd supabase secrets set NOTIFICATION_FROM_EMAIL=orders@your-domain.example
 ```
 
-Only `CHECKOUT_ALLOWED_ORIGINS` is required for checkout if Supabase provides the reserved variables. Telegram and Resend are optional.
+`CHECKOUT_ALLOWED_ORIGINS`, `TURNSTILE_REQUIRED`, `TURNSTILE_SECRET_KEY`, and `TURNSTILE_EXPECTED_ACTION` are required for public checkout if Supabase provides the reserved variables. Telegram and Resend are optional.
+
+Also set the public Cloudflare Turnstile site key in `site-config.js`:
+
+```js
+turnstile: {
+    siteKey: "your-turnstile-site-key",
+    action: "checkout"
+}
+```
 
 If your function ever reports that the checkout backend is not configured, set this fallback secret with the service-role key from Project Settings > API:
 

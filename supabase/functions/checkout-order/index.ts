@@ -4,13 +4,20 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     || '';
 const CHECKOUT_ALLOWED_ORIGINS = readCsv(Deno.env.get('CHECKOUT_ALLOWED_ORIGINS') || '');
 const CHECKOUT_UPLOAD_MAX_BYTES = readPositiveInt(Deno.env.get('CHECKOUT_UPLOAD_MAX_BYTES'), 20 * 1024 * 1024);
+const CHECKOUT_REQUEST_MAX_BYTES = readPositiveInt(Deno.env.get('CHECKOUT_REQUEST_MAX_BYTES'), 30 * 1024 * 1024);
+const CHECKOUT_RATE_LIMIT_WINDOW_MS = readPositiveInt(Deno.env.get('CHECKOUT_RATE_LIMIT_WINDOW_MS'), 10 * 60 * 1000);
+const CHECKOUT_RATE_LIMIT_MAX = readPositiveInt(Deno.env.get('CHECKOUT_RATE_LIMIT_MAX'), 12);
 const SHOP_NAME = Deno.env.get('SHOP_NAME') || 'PopOutPick';
+const TURNSTILE_SECRET_KEY = Deno.env.get('TURNSTILE_SECRET_KEY') || '';
+const TURNSTILE_EXPECTED_ACTION = Deno.env.get('TURNSTILE_EXPECTED_ACTION') || 'checkout';
+const TURNSTILE_REQUIRED = readBoolean(Deno.env.get('TURNSTILE_REQUIRED'), true);
 const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
 const TELEGRAM_ADMIN_CHAT_ID = Deno.env.get('TELEGRAM_ADMIN_CHAT_ID') || '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const NOTIFICATION_FROM_EMAIL = Deno.env.get('NOTIFICATION_FROM_EMAIL') || '';
 
 const CHECKOUT_DESIGN_PART_KEYS = new Set(['slider', 'top', 'bottom']);
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const COMMERCE_CONFIG = {
     productBasePrice: 10,
@@ -48,27 +55,40 @@ class CheckoutValidationError extends Error {
 
 Deno.serve(async req => {
     const origin = req.headers.get('origin') || '';
-    const headers = corsHeaders(origin);
+    const headers = corsHeaders(origin, req);
 
     if (req.method === 'OPTIONS') {
         return new Response(null, { status: 204, headers });
     }
 
     if (req.method === 'GET') {
-        return jsonResponse({ ok: true, service: 'checkout-order' }, 200, headers);
+        return jsonResponse({
+            ok: true,
+            service: 'checkout-order',
+            commerceFingerprint: await createCommerceFingerprint(COMMERCE_CONFIG)
+        }, 200, headers);
     }
 
     if (req.method !== 'POST') {
         return jsonResponse({ ok: false, error: 'Method not allowed.' }, 405, headers);
     }
 
-    if (!isOriginAllowed(origin)) {
+    if (!isOriginAllowed(origin, req)) {
         return jsonResponse({ ok: false, error: 'Checkout origin is not allowed.' }, 403, headers);
+    }
+
+    const rateLimit = applyCheckoutRateLimit(req);
+    if (!rateLimit.allowed) {
+        return jsonResponse({ ok: false, error: 'Too many checkout submissions.' }, 429, {
+            ...headers,
+            'Retry-After': String(rateLimit.retryAfterSeconds)
+        });
     }
 
     try {
         assertCheckout(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY, 'Checkout backend is not configured.', 503);
         const payload = await readCheckoutPayload(req);
+        await verifyTurnstileToken(payload.verification, req);
         const result = await insertCheckoutOrder(payload);
         return jsonResponse({ ok: true, ...result }, 201, headers);
     } catch (error) {
@@ -90,20 +110,96 @@ function readPositiveInt(value: string | undefined, fallback: number) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function corsHeaders(origin: string) {
-    const allowOrigin = isOriginAllowed(origin) ? origin : (CHECKOUT_ALLOWED_ORIGINS[0] || '*');
-    return {
-        'Access-Control-Allow-Origin': allowOrigin,
+function readBoolean(value: string | undefined, fallback: boolean) {
+    if (value === undefined || value === null || value === '') return fallback;
+    return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function stableJson(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+        const source = value as Record<string, unknown>;
+        return `{${Object.keys(source).sort().map(key => `${JSON.stringify(key)}:${stableJson(source[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+async function createCommerceFingerprint(config: Record<string, any>) {
+    const canonical = {
+        productBasePrice: config.productBasePrice,
+        meetupShippingPrice: config.meetupShippingPrice,
+        deliveryShippingPrice: config.deliveryShippingPrice,
+        shopProducts: config.shopProducts,
+        designAddOns: config.designAddOns,
+        meetupLocations: config.meetupLocations
+    };
+    const bytes = new TextEncoder().encode(stableJson(canonical));
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function corsHeaders(origin: string, req: Request) {
+    const headers: Record<string, string> = {
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Vary': 'Origin'
     };
+    if (origin && isOriginAllowed(origin, req)) {
+        headers['Access-Control-Allow-Origin'] = origin;
+    }
+    return headers;
 }
 
-function isOriginAllowed(origin: string) {
-    if (!origin) return true;
+function isLocalHostname(hostname: string) {
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+function isLocalRequest(req: Request) {
+    try {
+        return isLocalHostname(new URL(req.url).hostname);
+    } catch {
+        return false;
+    }
+}
+
+function isOriginAllowed(origin: string, req: Request) {
+    if (!origin) return isLocalRequest(req);
     if (CHECKOUT_ALLOWED_ORIGINS.includes(origin)) return true;
-    return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    return isLocalRequest(req) && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
+
+function getClientIp(req: Request) {
+    return (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'unknown')
+        .split(',')[0]
+        .trim();
+}
+
+function applyCheckoutRateLimit(req: Request) {
+    const now = Date.now();
+    const key = getClientIp(req);
+    for (const [bucketKey, bucket] of rateBuckets.entries()) {
+        if (now > bucket.resetAt + CHECKOUT_RATE_LIMIT_WINDOW_MS) {
+            rateBuckets.delete(bucketKey);
+        }
+    }
+
+    const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + CHECKOUT_RATE_LIMIT_WINDOW_MS };
+    if (now > bucket.resetAt) {
+        bucket.count = 0;
+        bucket.resetAt = now + CHECKOUT_RATE_LIMIT_WINDOW_MS;
+    }
+
+    bucket.count += 1;
+    rateBuckets.set(key, bucket);
+
+    if (bucket.count <= CHECKOUT_RATE_LIMIT_MAX) {
+        return { allowed: true, retryAfterSeconds: 0 };
+    }
+
+    return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+    };
 }
 
 function jsonResponse(payload: unknown, status: number, headers: Record<string, string>) {
@@ -119,6 +215,37 @@ function jsonResponse(payload: unknown, status: number, headers: Record<string, 
 
 function assertCheckout(condition: unknown, message: string, statusCode = 400): asserts condition {
     if (!condition) throw new CheckoutValidationError(message, statusCode);
+}
+
+async function verifyTurnstileToken(payload: unknown, req: Request) {
+    if (!TURNSTILE_SECRET_KEY) {
+        assertCheckout(!TURNSTILE_REQUIRED, 'Checkout verification is not configured.', 503);
+        return { skipped: true };
+    }
+
+    const source = asPlainObject(payload);
+    const token = cleanText(source?.token, 4096);
+    assertCheckout(token, 'Checkout verification is required.');
+
+    const form = new URLSearchParams();
+    form.set('secret', TURNSTILE_SECRET_KEY);
+    form.set('response', token);
+    form.set('remoteip', getClientIp(req));
+
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+    });
+    const result = await response.json().catch(() => null);
+
+    assertCheckout(response.ok, 'Checkout verification failed.', 403);
+    assertCheckout(result?.success === true, 'Checkout verification failed.', 403);
+    if (TURNSTILE_EXPECTED_ACTION) {
+        assertCheckout(!result.action || result.action === TURNSTILE_EXPECTED_ACTION, 'Checkout verification action does not match.', 403);
+    }
+
+    return result;
 }
 
 function asPlainObject(value: unknown): Record<string, any> | null {
@@ -718,13 +845,16 @@ async function normalizeClientUploadFile(file: unknown, uploadedFiles: Map<strin
     const upload = uploadedFiles.get(fieldName);
     assertCheckout(upload, 'Uploaded file is missing.');
 
+    const declaredContentType = cleanText(source.contentType || source.content_type, 120).toLowerCase();
+    assertCheckout(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(declaredContentType), 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
+
     const size = Number(source.size ?? source.size_bytes);
     assertCheckout(!Number.isFinite(size) || (size >= 0 && size <= CHECKOUT_UPLOAD_MAX_BYTES), 'Uploaded file is too large.');
     assertCheckout(upload.size <= CHECKOUT_UPLOAD_MAX_BYTES, 'Uploaded file is too large.');
     assertCheckout(!Number.isFinite(size) || upload.size === Math.round(size), 'Uploaded file size does not match metadata.');
 
-    const contentType = cleanText(upload.type || source.contentType || source.content_type, 120).toLowerCase();
-    assertCheckout(contentType.startsWith('image/'), 'Uploaded payment/design files must be images.');
+    const contentType = cleanText(upload.type || declaredContentType, 120).toLowerCase();
+    assertCheckout(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(contentType), 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
     const detectedContentType = detectImageContentType(new Uint8Array(await upload.slice(0, 16).arrayBuffer()));
     assertCheckout(detectedContentType, 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
     assertCheckout(contentType === detectedContentType || (contentType === 'image/jpg' && detectedContentType === 'image/jpeg'), 'Uploaded file type does not match its contents.');
@@ -796,6 +926,10 @@ async function canonicalizeCheckoutFiles(orderId: string, rawFiles: unknown, upl
 async function buildCheckoutOrderRecords(payload: Record<string, any>) {
     const order = asPlainObject(payload.order || payload);
     assertCheckout(order, 'Missing order payload.');
+    if (order.commerceFingerprint) {
+        const serverFingerprint = await createCommerceFingerprint(COMMERCE_CONFIG);
+        assertCheckout(cleanText(order.commerceFingerprint, 80) === serverFingerprint, 'Checkout pricing/config is stale. Please refresh and try again.', 409);
+    }
 
     const orderId = cleanText(order.orderId || order.id, 140);
     assertCheckout(/^order-[a-z0-9][a-z0-9-]{8,119}$/.test(orderId), 'Invalid order id.');
@@ -834,7 +968,14 @@ async function buildCheckoutOrderRecords(payload: Record<string, any>) {
     };
 }
 
+function assertRequestSizeAllowed(req: Request, limitBytes: number) {
+    const contentLength = Number(req.headers.get('content-length'));
+    assertCheckout(Number.isFinite(contentLength) && contentLength > 0, 'Missing request content length.', 411);
+    assertCheckout(contentLength <= limitBytes, 'Request body is too large.', 413);
+}
+
 async function readCheckoutPayload(req: Request) {
+    assertRequestSizeAllowed(req, CHECKOUT_REQUEST_MAX_BYTES);
     const contentType = req.headers.get('content-type') || '';
     assertCheckout(contentType.includes('multipart/form-data'), 'Checkout submission must use multipart/form-data.');
 
@@ -853,6 +994,7 @@ async function readCheckoutPayload(req: Request) {
     return {
         order: JSON.parse(orderText),
         fileMetadata: JSON.parse(fileMetadataText),
+        verification: JSON.parse(String(formData.get('verification') || 'null')),
         uploadedFiles
     };
 }

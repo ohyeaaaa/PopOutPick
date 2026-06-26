@@ -312,7 +312,9 @@ let checkoutState = {
     delivery: { postal: '', street: '', block: '', floor: '', unit: '', building: '', notes: '' },
     confirmed: false,
     isSubmitting: false,
-    submissionStatus: null
+    submissionStatus: null,
+    turnstileToken: '',
+    turnstileWidgetId: null
 };
 
 const cartStorageKey = 'popoutpick.cart.v1';
@@ -1142,7 +1144,7 @@ function render() {
                     ${renderDesignColorGrid(activeKey)}
                     <div class="label-caps">${escapeHtml(getText('normalSteps.previewLabel', '2D PREVIEW'))}</div>
                     <div class="design-preview-box design-upload-dropzone ${isWhiteColor(designColor) ? 'preview-contrast-light-part' : ''} ${isBlackColor(designColor) ? 'preview-contrast-dark-part' : ''}" style="background:${designColor};" onclick="triggerDesignUpload(event, '${activeKey}')" ondragover="handleDesignDragOver(event)" ondragleave="handleDesignDragLeave(event)" ondrop="handleDesignDrop(event, '${activeKey}')">
-                        <input id="design-upload-${activeKey}" class="design-upload-input" type="file" accept="image/*" onchange="handleDesignUpload(event, '${activeKey}')">
+                        <input id="design-upload-${activeKey}" class="design-upload-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp" onchange="handleDesignUpload(event, '${activeKey}')">
                         ${previewSrc
                             ? `<img id="design-preview-image-${activeKey}" class="design-preview-image" src="${previewSrc}" alt="${escapeHtml(getText('normalSteps.previewAlt', 'Uploaded custom design preview'))}" style="left:calc(50% + ${transform.x}px); top:calc(50% + ${transform.y}px); transform:translate(-50%, -50%) scale(${transform.scale / 100});" onpointerdown="startDesignDrag(event, '${activeKey}')">`
                             : `<div class="design-preview-empty"><strong>${escapeHtml(getText('symbols.upload', '☁️'))}</strong><span>${escapeHtml(getText('normalSteps.designDropText', 'Click or drop an image here'))}</span></div>`}
@@ -1306,6 +1308,97 @@ function getCheckoutText(key, fallback) {
 
 function getCommerceConfig() {
     return APP_CONFIG.commerce || {};
+}
+
+function stableJson(value) {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+async function getPublicCommerceFingerprint() {
+    if (!window.crypto?.subtle) return '';
+    const commerce = getCommerceConfig();
+    const canonical = {
+        productBasePrice: commerce.productBasePrice,
+        meetupShippingPrice: commerce.meetupShippingPrice,
+        deliveryShippingPrice: commerce.deliveryShippingPrice,
+        shopProducts: commerce.shopProducts,
+        designAddOns: commerce.designAddOns,
+        meetupLocations: commerce.meetupLocations
+    };
+    const bytes = new TextEncoder().encode(stableJson(canonical));
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getTurnstileConfig() {
+    return getCommerceConfig().turnstile || {};
+}
+
+function isTurnstileConfigured() {
+    return Boolean(String(getTurnstileConfig().siteKey || '').trim());
+}
+
+function loadTurnstileScript() {
+    if (!isTurnstileConfigured() || window.turnstile) return;
+    if (document.querySelector('script[data-turnstile-script]')) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.dataset.turnstileScript = 'true';
+    script.onload = () => renderCheckoutTurnstile();
+    document.head.appendChild(script);
+}
+
+function resetCheckoutTurnstile() {
+    checkoutState.turnstileToken = '';
+    if (window.turnstile && checkoutState.turnstileWidgetId !== null) {
+        try {
+            window.turnstile.reset(checkoutState.turnstileWidgetId);
+        } catch (error) {
+            console.warn('Could not reset checkout verification widget', error);
+        }
+    }
+    if (!document.getElementById('checkout-turnstile')) {
+        checkoutState.turnstileWidgetId = null;
+    }
+}
+
+function renderCheckoutTurnstile() {
+    if (!isTurnstileConfigured()) return;
+    const container = document.getElementById('checkout-turnstile');
+    if (!container || !window.turnstile) return;
+
+    if (checkoutState.turnstileWidgetId !== null && !container.dataset.turnstileWidgetId) {
+        checkoutState.turnstileWidgetId = null;
+        checkoutState.turnstileToken = '';
+    }
+
+    const existingWidgetId = container.dataset.turnstileWidgetId;
+    if (existingWidgetId) {
+        checkoutState.turnstileWidgetId = existingWidgetId;
+        return;
+    }
+
+    checkoutState.turnstileWidgetId = window.turnstile.render(container, {
+        sitekey: String(getTurnstileConfig().siteKey || '').trim(),
+        action: String(getTurnstileConfig().action || 'checkout').slice(0, 32),
+        callback(token) {
+            checkoutState.turnstileToken = token || '';
+        },
+        'expired-callback'() {
+            checkoutState.turnstileToken = '';
+        },
+        'error-callback'() {
+            checkoutState.turnstileToken = '';
+        }
+    });
+    container.dataset.turnstileWidgetId = String(checkoutState.turnstileWidgetId);
 }
 
 function shouldLogOptionalSupabaseWarnings() {
@@ -1883,6 +1976,8 @@ function buildCheckout() {
         </div>`;
 
     mountVisibleCheckoutPreviews();
+    loadTurnstileScript();
+    renderCheckoutTurnstile();
 }
 
 function mountCheckoutPreview(item, containerTarget) {
@@ -2349,7 +2444,15 @@ function renderCheckoutPaymentScreen() {
             .filter(Boolean)
             .join(' · ');
 
-    const canConfirm = isUploadableFile(checkoutState.paymentScreenshotFile) && !checkoutState.isSubmitting && !checkoutState.confirmed;
+    const verificationRequired = isTurnstileConfigured();
+    const hasVerification = !verificationRequired || Boolean(checkoutState.turnstileToken);
+    const canConfirm = isUploadableFile(checkoutState.paymentScreenshotFile) && hasVerification && !checkoutState.isSubmitting && !checkoutState.confirmed;
+    const verificationHelp = verificationRequired
+        ? `<div class="checkout-bot-check">
+                <div id="checkout-turnstile" class="checkout-turnstile"></div>
+                <small>${escapeHtml(getCheckoutText('checkoutVerificationHelp', 'Complete the verification before confirming your order.'))}</small>
+            </div>`
+        : '';
 
     return `<div class="checkout-flow-grid">
         <section class="checkout-main-panel">
@@ -2370,10 +2473,11 @@ function renderCheckoutPaymentScreen() {
             <div class="checkout-qr-note">${escapeHtml(getCheckoutText('qrTransferTo', 'Transfer to: PopOutPick'))}</div>
             <div class="checkout-payment-upload ${checkoutState.paymentScreenshotName ? 'has-file' : ''}" role="button" tabindex="0" onclick="checkoutTriggerPaymentScreenshotUpload(event)" onkeydown="checkoutHandlePaymentUploadKeydown(event)" onpaste="checkoutHandlePaymentScreenshotPaste(event)">
                 <span>${escapeHtml(getCheckoutText('paymentScreenshotLabel', "Upload or Paste Payment's Screen Shot"))}</span>
-                <input id="checkout-payment-screenshot" type="file" accept="image/*" onchange="checkoutHandlePaymentScreenshot(event)">
+                <input id="checkout-payment-screenshot" type="file" accept="image/png,image/jpeg,image/gif,image/webp" onchange="checkoutHandlePaymentScreenshot(event)">
                 <small>${escapeHtml(checkoutState.paymentScreenshotName || getCheckoutText('paymentScreenshotHelp', 'Click here, or copy and paste your bank payment confirmation screenshot.'))}</small>
                 ${checkoutState.paymentScreenshotName ? `<button type="button" class="checkout-payment-remove" onclick="checkoutRemovePaymentScreenshot(event)">${escapeHtml(getCheckoutText('paymentScreenshotRemove', 'Remove screenshot'))}</button>` : ''}
             </div>
+            ${verificationHelp}
             <div class="checkout-confirm-focus ${canConfirm ? 'is-ready' : ''}">
                 <span class="checkout-confirm-arrow" aria-hidden="true">➜</span>
                 <button class="checkout-confirm ${canConfirm ? 'is-ready' : ''}" ${canConfirm ? '' : 'disabled aria-disabled="true"'} onclick="checkoutHandleConfirm()">${escapeHtml(checkoutState.isSubmitting ? getCheckoutText('confirmSavingButton', 'Saving order...') : getCheckoutText('confirmButton', 'I’ve Paid — Confirm Order'))}</button>
@@ -2699,7 +2803,7 @@ function checkoutGoToPayment() {
 }
 
 function checkoutSetPaymentScreenshot(name, source, file = null) {
-    const validFile = isUploadableFile(file) && String(file.type || '').toLowerCase().startsWith('image/');
+    const validFile = isUploadableFile(file) && isAllowedUploadMime(file.type);
     checkoutState.paymentScreenshotName = validFile ? (name || file.name || 'Payment screenshot') : '';
     checkoutState.paymentScreenshotSource = validFile ? source : '';
     checkoutState.paymentScreenshotFile = validFile ? file : null;
@@ -2823,13 +2927,16 @@ function getSupabaseClient() {
     return window.popoutpickSupabaseClient;
 }
 
+function isAllowedUploadMime(type = '') {
+    return ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(String(type).toLowerCase());
+}
+
 function getExtensionFromMime(type = '') {
     const mime = String(type).toLowerCase();
     if (mime === 'image/jpeg') return 'jpg';
     if (mime === 'image/png') return 'png';
     if (mime === 'image/webp') return 'webp';
     if (mime === 'image/gif') return 'gif';
-    if (mime === 'image/svg+xml') return 'svg';
     return 'bin';
 }
 
@@ -2975,13 +3082,31 @@ function normalizeUploadedOrderFile(file) {
     return file.metadata;
 }
 
+function getCheckoutVerificationPayload() {
+    if (!isTurnstileConfigured()) return null;
+    return {
+        provider: 'turnstile',
+        token: checkoutState.turnstileToken,
+        action: String(getTurnstileConfig().action || 'checkout')
+    };
+}
+
 async function submitCheckoutOrderToApi(payload, files) {
     const checkoutApiUrl = getCheckoutApiUrl();
     if (!checkoutApiUrl) return { skipped: true };
 
+    const commerceFingerprint = await getPublicCommerceFingerprint();
+    if (commerceFingerprint) {
+        payload.commerceFingerprint = commerceFingerprint;
+    }
+
     const formData = new FormData();
     formData.append('order', JSON.stringify(payload));
     formData.append('fileMetadata', JSON.stringify(files.map(normalizeUploadedOrderFile)));
+    const verification = getCheckoutVerificationPayload();
+    if (verification) {
+        formData.append('verification', JSON.stringify(verification));
+    }
     files.forEach(({ file, metadata }) => {
         formData.append(metadata.fieldName, file, metadata.originalName || file.name || 'upload');
     });
@@ -3082,6 +3207,14 @@ async function checkoutSendSupabaseTest() {
 
 async function checkoutHandleConfirm() {
     if (!checkoutState.paymentScreenshotName || checkoutState.isSubmitting || checkoutState.confirmed) return;
+    if (isTurnstileConfigured() && !checkoutState.turnstileToken) {
+        checkoutState.submissionStatus = {
+            phase: 'error',
+            message: getCheckoutText('checkoutVerificationRequired', 'Please complete the verification before confirming your order.')
+        };
+        buildCheckout();
+        return;
+    }
 
     const payload = buildOrderPayload();
     checkoutState.lastOrderId = payload.orderId;
@@ -3098,12 +3231,14 @@ async function checkoutHandleConfirm() {
         checkoutState.isSubmitting = false;
         checkoutState.submissionStatus = null;
         checkoutState.cartItems = [];
+        resetCheckoutTurnstile();
         clearSavedCart();
         updateSiteCartCount();
     } catch (error) {
         console.error('Order Supabase submission failed', error);
         checkoutState.confirmed = false;
         checkoutState.isSubmitting = false;
+        resetCheckoutTurnstile();
         checkoutState.submissionStatus = { phase: 'error', message: getCheckoutSubmissionErrorMessage(error) };
     }
 
@@ -3201,12 +3336,12 @@ function handleImageFile(file, handlers = {}) {
 function handleDesignFileForKey(file, key) {
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
+    if (!isAllowedUploadMime(file.type)) {
         setDesignUploadStatus(key, {
             phase: 'error',
             progress: null,
             message: uploadStatusText('normalSteps.uploadErrorText', 'Could not load {name}', { name: file.name }),
-            meta: 'Please upload an image file.'
+            meta: 'Please upload a PNG, JPEG, GIF, or WebP image.'
         });
         return;
     }

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PopOutPick - Custom Modular Guitar Pick Holder</title>
     <meta name="description" content="Build a custom PopOutPick modular guitar pick holder with configurable colours, parts, design uploads, checkout, and PayNow payment proof.">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="vendor/three-r128/three.min.js"></script>
+    <script src="vendor/three-r128/GLTFLoader.js"></script>
+    <script src="vendor/supabase-js-2.108.2/supabase.js"></script>
     <style>
         /* --- Core Palette Variables: Dark Studio + Translucency --- */
         :root {
@@ -521,6 +521,18 @@
         .card:hover .hud-corners-alt::before { transform: translate(4px, -4px); border-color: #ff9a00; opacity: 1;}
         .card:hover .hud-corners-alt::after { transform: translate(-4px, 4px); border-color: #ff9a00; opacity: 1;}
 
+        .render-preview-video {
+            width: 100%;
+            height: 100%;
+            min-height: 520px;
+            object-fit: cover;
+            border-radius: 8px;
+            display: block;
+            transform: rotate(-90deg) scale(1.35);
+            transform-origin: center;
+            box-shadow: 0 0 30px rgba(226, 88, 34, 0.22);
+        }
+
         /* --- Terminal Style Input --- */
         .input-group {
             position: relative;
@@ -1017,6 +1029,21 @@
                 transform: rotate(-90deg) scale(1.02) !important;
             }
 
+            .hud-container.render-preview-frame {
+                min-height: clamp(260px, 78vw, 360px) !important;
+                overflow: hidden;
+                padding: 12px;
+            }
+
+            .hud-container .render-preview-video {
+                width: min(220px, calc(100vw - 80px)) !important;
+                height: calc(100vw - 96px) !important;
+                min-height: 0 !important;
+                max-height: 330px;
+                object-fit: contain;
+                transform: rotate(-90deg) scale(1) !important;
+            }
+
             #scroll-glb-viewer {
                 min-height: 230px !important;
             }
@@ -1154,6 +1181,16 @@
                 min-height: 156px !important;
             }
 
+            .hud-container.render-preview-frame {
+                min-height: clamp(236px, 78vw, 300px) !important;
+            }
+
+            .hud-container .render-preview-video {
+                width: min(196px, calc(100vw - 78px)) !important;
+                height: calc(100vw - 96px) !important;
+                max-height: 292px;
+            }
+
             .product-proof-media,
             .product-proof-media video {
                 min-height: 200px;
@@ -1246,9 +1283,9 @@
 
         <div class="card col-span-7 stagger-down reveal-on-scroll" style="transition-delay: 0.1s;">
             <span class="mono-accent">// RENDER_PREVIEW</span>
-            <div class="hud-container" style="min-height: 560px;">
+            <div class="hud-container render-preview-frame" style="min-height: 560px;">
                 <div class="hud-corners-alt"></div>
-                <video data-src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline preload="none" style="width:100%; height:100%; min-height:520px; object-fit:cover; border-radius:8px; display:block; transform:rotate(-90deg) scale(1.35); transform-origin:center; box-shadow:0 0 30px rgba(226, 88, 34, 0.22);"></video>
+                <video class="render-preview-video" data-src="Picture/VID_20260602_114552.mp4" autoplay loop muted playsinline preload="none"></video>
             </div>
         </div>
 

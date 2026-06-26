@@ -24,6 +24,8 @@ const ADMIN_ALLOWED_IPS = readCsv(process.env.ADMIN_ALLOWED_IPS);
 const RATE_LIMIT_WINDOW_MS = readPositiveInt(process.env.RATE_LIMIT_WINDOW_MS, 60_000);
 const RATE_LIMIT_MAX = readPositiveInt(process.env.RATE_LIMIT_MAX, 240);
 const ADMIN_RATE_LIMIT_MAX = readPositiveInt(process.env.ADMIN_RATE_LIMIT_MAX, 60);
+const CHECKOUT_RATE_LIMIT_WINDOW_MS = readPositiveInt(process.env.CHECKOUT_RATE_LIMIT_WINDOW_MS, 10 * 60_000);
+const CHECKOUT_RATE_LIMIT_MAX = readPositiveInt(process.env.CHECKOUT_RATE_LIMIT_MAX, 12);
 const REQUEST_LOG_LIMIT = readPositiveInt(process.env.REQUEST_LOG_LIMIT, 200);
 const LOG_TO_FILE = readBoolean(process.env.LOG_TO_FILE, true);
 const LOG_DIR = process.env.LOG_DIR || 'logs';
@@ -48,9 +50,14 @@ const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY |
 const CHECKOUT_ALLOWED_ORIGINS = readCsv(process.env.CHECKOUT_ALLOWED_ORIGINS);
 const CHECKOUT_UPLOAD_MAX_BYTES = readPositiveInt(process.env.CHECKOUT_UPLOAD_MAX_BYTES, 20 * 1024 * 1024);
 const CHECKOUT_REQUEST_MAX_BYTES = readPositiveInt(process.env.CHECKOUT_REQUEST_MAX_BYTES, 80 * 1024 * 1024);
+const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+const TURNSTILE_EXPECTED_ACTION = String(process.env.TURNSTILE_EXPECTED_ACTION || 'checkout').trim();
+const TURNSTILE_REQUIRED = readBoolean(process.env.TURNSTILE_REQUIRED, true);
+const EXPECTED_COMMERCE_FINGERPRINT = String(process.env.COMMERCE_CONFIG_FINGERPRINT || '').trim().toLowerCase();
 const SITE_CONFIG = loadSiteConfig();
 const COMMERCE_CONFIG = SITE_CONFIG.commerce || {};
 const CHECKOUT_DESIGN_PART_KEYS = new Set(['slider', 'top', 'bottom']);
+const COMMERCE_FINGERPRINT = createCommerceFingerprint(COMMERCE_CONFIG);
 
 const PUBLIC_ROOT_FILES = new Set([
     'index.html',
@@ -192,6 +199,27 @@ function loadSiteConfig() {
     }
 }
 
+function stableJson(value) {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function createCommerceFingerprint(config) {
+    const commerce = config || {};
+    const canonical = {
+        productBasePrice: commerce.productBasePrice,
+        meetupShippingPrice: commerce.meetupShippingPrice,
+        deliveryShippingPrice: commerce.deliveryShippingPrice,
+        shopProducts: commerce.shopProducts,
+        designAddOns: commerce.designAddOns,
+        meetupLocations: commerce.meetupLocations
+    };
+    return crypto.createHash('sha256').update(stableJson(canonical)).digest('hex');
+}
+
 function saveJsonFile(filePath, value) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, error => {
@@ -261,6 +289,10 @@ function isAllowedPublicFile(relativePath) {
             || relativePath === 'PopOutPick_Website/bass-icon.png';
     }
 
+    if (relativePath.startsWith('vendor/')) {
+        return extension === '.js';
+    }
+
     return false;
 }
 
@@ -322,11 +354,12 @@ function setSecurityHeaders(req, res) {
         "base-uri 'self'",
         "frame-ancestors 'none'",
         "form-action 'self'",
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
+        "frame-src https://challenges.cloudflare.com",
         "media-src 'self' blob:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
         "worker-src 'self' blob:"
     ].join('; '));
 
@@ -398,22 +431,27 @@ function requireAdminAccess(req, res) {
     return true;
 }
 
-function applyRateLimit(req, res, isAdminRoute) {
+function applyRateLimit(req, res, routeType) {
     const now = Date.now();
     const ip = getRemoteIp(req);
-    const key = `${isAdminRoute ? 'admin' : 'public'}:${ip}`;
-    const maxRequests = isAdminRoute ? ADMIN_RATE_LIMIT_MAX : RATE_LIMIT_MAX;
-    const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    const limits = {
+        admin: { maxRequests: ADMIN_RATE_LIMIT_MAX, windowMs: RATE_LIMIT_WINDOW_MS },
+        checkout: { maxRequests: CHECKOUT_RATE_LIMIT_MAX, windowMs: CHECKOUT_RATE_LIMIT_WINDOW_MS },
+        public: { maxRequests: RATE_LIMIT_MAX, windowMs: RATE_LIMIT_WINDOW_MS }
+    };
+    const limit = limits[routeType] || limits.public;
+    const key = `${routeType || 'public'}:${ip}`;
+    const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + limit.windowMs };
 
     if (now > bucket.resetAt) {
         bucket.count = 0;
-        bucket.resetAt = now + RATE_LIMIT_WINDOW_MS;
+        bucket.resetAt = now + limit.windowMs;
     }
 
     bucket.count += 1;
     rateBuckets.set(key, bucket);
 
-    if (bucket.count <= maxRequests) return true;
+    if (bucket.count <= limit.maxRequests) return true;
 
     const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
     res.setHeader('Retry-After', String(retryAfter));
@@ -424,7 +462,9 @@ function applyRateLimit(req, res, isAdminRoute) {
 function pruneRateBuckets() {
     const now = Date.now();
     for (const [key, bucket] of rateBuckets.entries()) {
-        if (now > bucket.resetAt + RATE_LIMIT_WINDOW_MS) {
+        const isCheckoutBucket = key.startsWith('checkout:');
+        const pruneAfterMs = isCheckoutBucket ? CHECKOUT_RATE_LIMIT_WINDOW_MS : RATE_LIMIT_WINDOW_MS;
+        if (now > bucket.resetAt + pruneAfterMs) {
             rateBuckets.delete(key);
         }
     }
@@ -464,6 +504,15 @@ function isLocalHostname(hostname) {
         || hostname === '[::1]';
 }
 
+function isLoopbackAddress(value) {
+    const normalized = String(value || '').trim().replace(/^::ffff:/, '');
+    return normalized === '127.0.0.1' || normalized === '::1';
+}
+
+function isLoopbackRequest(req) {
+    return isLoopbackAddress(req.socket.remoteAddress);
+}
+
 function isLocalDevelopment(req) {
     const publicOrigin = originFromUrl(PUBLIC_BASE_URL);
     if (publicOrigin) {
@@ -479,7 +528,7 @@ function isLocalDevelopment(req) {
 }
 
 function isCheckoutOriginAllowed(origin, req) {
-    if (!origin) return true;
+    if (!origin) return isLoopbackRequest(req);
     if (CHECKOUT_ALLOWED_ORIGINS.has(origin)) return true;
 
     const publicOrigin = originFromUrl(PUBLIC_BASE_URL);
@@ -709,7 +758,14 @@ function parseMultipartFormData(buffer, contentType) {
     return { fields, files };
 }
 
+function assertRequestSizeAllowed(req, limitBytes) {
+    const contentLength = Number(req.headers['content-length']);
+    assertCheckout(Number.isFinite(contentLength) && contentLength > 0, 'Missing request content length.', 411);
+    assertCheckout(contentLength <= limitBytes, 'Request body is too large.', 413);
+}
+
 async function readCheckoutPayload(req) {
+    assertRequestSizeAllowed(req, CHECKOUT_REQUEST_MAX_BYTES);
     const contentType = String(req.headers['content-type'] || '');
     if (contentType.includes('multipart/form-data')) {
         const buffer = await readRequestBuffer(req, CHECKOUT_REQUEST_MAX_BYTES);
@@ -717,6 +773,7 @@ async function readCheckoutPayload(req) {
         return {
             order: JSON.parse(form.fields.order || '{}'),
             fileMetadata: JSON.parse(form.fields.fileMetadata || '[]'),
+            verification: JSON.parse(form.fields.verification || 'null'),
             uploadedFiles: form.files
         };
     }
@@ -1136,6 +1193,48 @@ class CheckoutValidationError extends Error {
 
 function assertCheckout(condition, message, statusCode = 400) {
     if (!condition) throw new CheckoutValidationError(message, statusCode);
+}
+
+async function verifyTurnstileToken(payload, req) {
+    if (!TURNSTILE_SECRET_KEY) {
+        assertCheckout(isLoopbackRequest(req) || !TURNSTILE_REQUIRED, 'Checkout verification is not configured.', 503);
+        return { skipped: true };
+    }
+
+    const source = asPlainObject(payload);
+    const token = cleanText(source?.token, 4096);
+    assertCheckout(token, 'Checkout verification is required.');
+
+    const form = new URLSearchParams();
+    form.set('secret', TURNSTILE_SECRET_KEY);
+    form.set('response', token);
+    form.set('remoteip', getRemoteIp(req));
+
+    const response = await requestBuffer({
+        hostname: 'challenges.cloudflare.com',
+        path: '/turnstile/v0/siteverify',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(form.toString())
+        },
+        timeout: 15000
+    }, form.toString());
+
+    let result = null;
+    try {
+        result = JSON.parse(response.body.toString('utf8'));
+    } catch {
+        result = null;
+    }
+
+    assertCheckout(response.status >= 200 && response.status < 300, 'Checkout verification failed.', 403);
+    assertCheckout(result?.success === true, 'Checkout verification failed.', 403);
+    if (TURNSTILE_EXPECTED_ACTION) {
+        assertCheckout(!result.action || result.action === TURNSTILE_EXPECTED_ACTION, 'Checkout verification action does not match.', 403);
+    }
+
+    return result;
 }
 
 function asPlainObject(value) {
@@ -1816,13 +1915,16 @@ function normalizeClientUploadFile(file, uploadedFiles) {
     const upload = uploadedFiles.get(fieldName);
     assertCheckout(upload, 'Uploaded file is missing.');
 
+    const declaredContentType = cleanText(source.contentType || source.content_type, 120).toLowerCase();
+    assertCheckout(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(declaredContentType), 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
+
     const size = Number(source.size ?? source.size_bytes);
     assertCheckout(!Number.isFinite(size) || (size >= 0 && size <= CHECKOUT_UPLOAD_MAX_BYTES), 'Uploaded file is too large.');
     assertCheckout(upload.buffer.length <= CHECKOUT_UPLOAD_MAX_BYTES, 'Uploaded file is too large.');
     assertCheckout(!Number.isFinite(size) || upload.buffer.length === Math.round(size), 'Uploaded file size does not match metadata.');
 
-    const contentType = cleanText(upload.contentType || source.contentType || source.content_type, 120).toLowerCase();
-    assertCheckout(contentType.startsWith('image/'), 'Uploaded payment/design files must be images.');
+    const contentType = cleanText(upload.contentType || declaredContentType, 120).toLowerCase();
+    assertCheckout(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(contentType), 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
     const detectedContentType = detectImageContentType(upload.buffer);
     assertCheckout(detectedContentType, 'Uploaded payment/design files must be PNG, JPEG, GIF, or WebP images.');
     assertCheckout(contentType === detectedContentType || (contentType === 'image/jpg' && detectedContentType === 'image/jpeg'), 'Uploaded file type does not match its contents.');
@@ -1907,6 +2009,9 @@ async function canonicalizeCheckoutFiles(orderId, rawFiles, uploadedFiles, items
 async function buildCheckoutOrderRecords(payload) {
     const order = asPlainObject(payload.order || payload);
     assertCheckout(order, 'Missing order payload.');
+    if (order.commerceFingerprint) {
+        assertCheckout(cleanText(order.commerceFingerprint, 80) === COMMERCE_FINGERPRINT, 'Checkout pricing/config is stale. Please refresh and try again.', 409);
+    }
 
     const orderId = cleanText(order.orderId || order.id, 140);
     assertCheckout(/^order-[a-z0-9][a-z0-9-]{8,119}$/.test(orderId), 'Invalid order id.');
@@ -1979,6 +2084,7 @@ async function handleCheckoutOrder(req, res) {
 
     try {
         const payload = await readCheckoutPayload(req);
+        await verifyTurnstileToken(payload.verification, req);
         const result = await insertCheckoutOrder(payload);
         sendJson(req, res, 201, { ok: true, ...result });
     } catch (error) {
@@ -2232,6 +2338,7 @@ function handleHealth(req, res) {
         time: new Date().toISOString(),
         uptimeSeconds: Math.round(process.uptime()),
         adminEnabled: ADMIN_ENABLED,
+        commerceFingerprint: COMMERCE_FINGERPRINT,
         https: isHttpsRequest(req)
     });
 }
@@ -2317,7 +2424,7 @@ function runPreflightChecks(req) {
     checks.push({
         name: 'admin_ip_allowlist_configured',
         ok: localDevelopment || ADMIN_ALLOWED_IPS.size > 0,
-        severity: 'warning',
+        severity: 'error',
         detail: localDevelopment
             ? 'Skipped for localhost development.'
             : 'Set ADMIN_ALLOWED_IPS in production to restrict Basic auth attempts.'
@@ -2347,7 +2454,7 @@ function runPreflightChecks(req) {
             || REQUIRE_HTTPS
             || Boolean(HTTPS_KEY_PATH && HTTPS_CERT_PATH)
             || PUBLIC_BASE_URL.startsWith('https://'),
-        severity: 'warning',
+        severity: 'error',
         detail: localDevelopment ? 'Skipped for localhost development.' : 'Use HTTPS in production.'
     });
 
@@ -2360,10 +2467,28 @@ function runPreflightChecks(req) {
     checks.push({
         name: 'checkout_origin_allowlist_configured',
         ok: localDevelopment || CHECKOUT_ALLOWED_ORIGINS.size > 0,
-        severity: 'warning',
+        severity: 'error',
         detail: localDevelopment
             ? 'Skipped for localhost development.'
             : 'Set CHECKOUT_ALLOWED_ORIGINS to the exact public site origins that may submit checkout orders.'
+    });
+
+    checks.push({
+        name: 'checkout_bot_protection_configured',
+        ok: localDevelopment || (TURNSTILE_REQUIRED && TURNSTILE_SECRET_KEY.length > 0),
+        severity: 'error',
+        detail: localDevelopment
+            ? 'Skipped for localhost development.'
+            : 'Set TURNSTILE_REQUIRED=true and TURNSTILE_SECRET_KEY in production to reduce fake checkout submissions.'
+    });
+
+    checks.push({
+        name: 'commerce_config_fingerprint',
+        ok: !EXPECTED_COMMERCE_FINGERPRINT || EXPECTED_COMMERCE_FINGERPRINT === COMMERCE_FINGERPRINT,
+        severity: 'error',
+        detail: EXPECTED_COMMERCE_FINGERPRINT
+            ? `Current fingerprint: ${COMMERCE_FINGERPRINT}`
+            : `Current fingerprint: ${COMMERCE_FINGERPRINT}. Set COMMERCE_CONFIG_FINGERPRINT to pin production pricing/config.`
     });
 
     checks.push({
@@ -2446,7 +2571,12 @@ function handleRequest(req, res) {
         return;
     }
 
-    if (!applyRateLimit(req, res, isAdminRoute)) return;
+    const rateLimitRoute = isAdminRoute
+        ? 'admin'
+        : url.pathname === '/api/checkout/orders'
+            ? 'checkout'
+            : 'public';
+    if (!applyRateLimit(req, res, rateLimitRoute)) return;
 
     if (url.pathname === '/healthz') {
         handleHealth(req, res);

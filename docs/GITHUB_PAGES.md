@@ -33,6 +33,18 @@ In Supabase Edge Function secrets, allow your GitHub Pages origin:
 
 ```text
 CHECKOUT_ALLOWED_ORIGINS=https://your-github-username.github.io
+TURNSTILE_REQUIRED=true
+TURNSTILE_SECRET_KEY=your-turnstile-secret-key
+TURNSTILE_EXPECTED_ACTION=checkout
+```
+
+In `site-config.js`, set the public Cloudflare Turnstile site key:
+
+```js
+turnstile: {
+    siteKey: "your-turnstile-site-key",
+    action: "checkout"
+}
 ```
 
 ## Local Static Build

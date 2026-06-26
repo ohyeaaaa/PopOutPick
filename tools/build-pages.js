@@ -29,16 +29,18 @@ const assetDirExtensions = new Map([
 
 const selectedFiles = [
     'PopOutPick_Website/guitar-icon.png',
-    'PopOutPick_Website/bass-icon.png'
-];
-
-const directoryAliases = [
-    { source: 'admin', target: 'hotcheeks', extensions: new Set(['.css', '.html', '.js']) }
+    'PopOutPick_Website/bass-icon.png',
+    'vendor/three-r128/three.min.js',
+    'vendor/three-r128/GLTFLoader.js',
+    'vendor/three-r128/OrbitControls.js',
+    'vendor/supabase-js-2.108.2/supabase.js'
 ];
 
 const forbiddenRootPaths = new Set([
     '.env',
     'TELEGRAM.txt',
+    'admin',
+    'hotcheeks',
     'server.js',
     'database/supabase-setup.sql',
     'integrations/google-app-script.gs',
@@ -57,6 +59,8 @@ const forbiddenNames = new Set([
     'TELEGRAM.txt',
     'docs',
     'database',
+    'admin',
+    'hotcheeks',
     'integrations',
     'server.js',
     'supabase-setup.sql',
@@ -155,7 +159,6 @@ fs.mkdirSync(DIST_DIR, { recursive: true });
 
 rootFiles.forEach(copyFile);
 assetDirs.forEach(dir => copyDir(dir));
-directoryAliases.forEach(alias => copyDir(alias.source, alias.target, alias.extensions));
 selectedFiles.forEach(copyFile);
 
 fs.writeFileSync(path.join(DIST_DIR, '.nojekyll'), '');

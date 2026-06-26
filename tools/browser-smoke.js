@@ -90,7 +90,9 @@ function startServer() {
         env: {
             ...process.env,
             PORT: String(PORT),
-            HOST
+            HOST,
+            REQUIRE_HTTPS: process.env.SMOKE_REQUIRE_HTTPS || 'false',
+            TRUST_PROXY: process.env.SMOKE_TRUST_PROXY || 'false'
         },
         stdio: ['ignore', 'pipe', 'pipe']
     });
