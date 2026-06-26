@@ -146,9 +146,13 @@
         currentUser = userData.user;
         if (!currentUser) return false;
 
-        const { data, error } = await getRequiredClient().rpc('is_admin');
+        const { data, error } = await getRequiredClient()
+            .from('admin_users')
+            .select('user_id')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
         if (error) throw error;
-        return data === true;
+        return Boolean(data);
     }
 
     async function showDashboard() {

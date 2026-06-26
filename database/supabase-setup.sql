@@ -86,6 +86,10 @@ create table if not exists public.homepage_text (
     updated_at timestamptz not null default now()
 );
 
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated, service_role;
+
 alter table public.admin_users enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_files enable row level security;
@@ -94,7 +98,7 @@ alter table public.checkout_time_slots enable row level security;
 alter table public.checkout_blocked_dates enable row level security;
 alter table public.homepage_text enable row level security;
 
-create or replace function public.is_admin()
+create or replace function private.is_admin()
 returns boolean
 language sql
 security definer
@@ -108,15 +112,15 @@ as $$
     );
 $$;
 
-revoke all on function public.is_admin() from public;
-grant execute on function public.is_admin() to authenticated;
+revoke all on function private.is_admin() from public;
+grant execute on function private.is_admin() to authenticated, service_role;
 
 drop policy if exists "Admins can read admin users" on public.admin_users;
 create policy "Admins can read admin users"
 on public.admin_users
 for select
 to authenticated
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Public can create orders" on public.orders;
 drop policy if exists "Public cannot create orders directly" on public.orders;
@@ -131,15 +135,15 @@ create policy "Admins can read orders"
 on public.orders
 for select
 to authenticated
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Admins can update orders" on public.orders;
 create policy "Admins can update orders"
 on public.orders
 for update
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (private.is_admin())
+with check (private.is_admin());
 
 drop policy if exists "Public can create order files" on public.order_files;
 drop policy if exists "Public cannot create order file rows directly" on public.order_files;
@@ -154,60 +158,60 @@ create policy "Admins can read order files"
 on public.order_files
 for select
 to authenticated
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Admins can read promo codes" on public.checkout_promo_codes;
 create policy "Admins can read promo codes"
 on public.checkout_promo_codes
 for select
 to authenticated
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Admins can insert promo codes" on public.checkout_promo_codes;
 create policy "Admins can insert promo codes"
 on public.checkout_promo_codes
 for insert
 to authenticated
-with check (public.is_admin());
+with check (private.is_admin());
 
 drop policy if exists "Admins can update promo codes" on public.checkout_promo_codes;
 create policy "Admins can update promo codes"
 on public.checkout_promo_codes
 for update
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (private.is_admin())
+with check (private.is_admin());
 
 drop policy if exists "Admins can delete promo codes" on public.checkout_promo_codes;
 create policy "Admins can delete promo codes"
 on public.checkout_promo_codes
 for delete
 to authenticated
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Admins can manage time slots" on public.checkout_time_slots;
 create policy "Admins can manage time slots"
 on public.checkout_time_slots
 for all
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (private.is_admin())
+with check (private.is_admin());
 
 drop policy if exists "Admins can manage blocked dates" on public.checkout_blocked_dates;
 create policy "Admins can manage blocked dates"
 on public.checkout_blocked_dates
 for all
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (private.is_admin())
+with check (private.is_admin());
 
 drop policy if exists "Admins can manage homepage text" on public.homepage_text;
 create policy "Admins can manage homepage text"
 on public.homepage_text
 for all
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (private.is_admin())
+with check (private.is_admin());
 
 create or replace function public.get_active_promo_code(p_code text)
 returns table (
@@ -217,7 +221,7 @@ returns table (
     discount_value numeric
 )
 language sql
-security definer
+security invoker
 set search_path = public
 stable
 as $$
@@ -235,12 +239,13 @@ as $$
 $$;
 
 revoke all on function public.get_active_promo_code(text) from public;
-grant execute on function public.get_active_promo_code(text) to anon, authenticated;
+revoke execute on function public.get_active_promo_code(text) from anon, authenticated;
+grant execute on function public.get_active_promo_code(text) to service_role;
 
 create or replace function public.get_checkout_availability()
 returns jsonb
 language sql
-security definer
+security invoker
 set search_path = public
 stable
 as $$
@@ -274,7 +279,7 @@ grant execute on function public.get_checkout_availability() to anon, authentica
 create or replace function public.get_homepage_text()
 returns jsonb
 language sql
-security definer
+security invoker
 set search_path = public
 stable
 as $$
@@ -321,14 +326,50 @@ as $$
         order_files.created_at
     from public.order_files
     where order_files.order_id = p_order_id
-      and public.is_admin();
+      and private.is_admin();
 $$;
 
 revoke all on function public.list_order_files_for_admin(text) from public;
-grant execute on function public.list_order_files_for_admin(text) to authenticated;
+revoke execute on function public.list_order_files_for_admin(text) from anon, authenticated;
+grant execute on function public.list_order_files_for_admin(text) to service_role;
 
 drop policy if exists "Public can read active time slots" on public.checkout_time_slots;
 drop policy if exists "Public can read active blocked dates" on public.checkout_blocked_dates;
+drop policy if exists "Public can read active checkout time slots" on public.checkout_time_slots;
+create policy "Public can read active checkout time slots"
+on public.checkout_time_slots
+for select
+to anon, authenticated
+using (active = true);
+
+drop policy if exists "Public can read active checkout blocked dates" on public.checkout_blocked_dates;
+create policy "Public can read active checkout blocked dates"
+on public.checkout_blocked_dates
+for select
+to anon, authenticated
+using (active = true);
+
+drop policy if exists "Public can read homepage text" on public.homepage_text;
+create policy "Public can read homepage text"
+on public.homepage_text
+for select
+to anon, authenticated
+using (true);
+
+do $$
+begin
+    if to_regprocedure('public.is_admin()') is not null then
+        revoke execute on function public.is_admin() from public, anon, authenticated;
+    end if;
+end
+$$;
+do $$
+begin
+    if to_regprocedure('public.rls_auto_enable()') is not null then
+        revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+    end if;
+end
+$$;
 
 insert into public.checkout_promo_codes (code, label, discount_type, discount_value, active)
 values ('POP10', '10% off', 'percent', 10, true)
@@ -430,14 +471,14 @@ create policy "Admins can read order bucket files"
 on storage.objects
 for select
 to authenticated
-using (bucket_id like 'order-%' and public.is_admin());
+using (bucket_id like 'order-%' and private.is_admin());
 
 drop policy if exists "Admins can delete order bucket files" on storage.objects;
 create policy "Admins can delete order bucket files"
 on storage.objects
 for delete
 to authenticated
-using (bucket_id like 'order-%' and public.is_admin());
+using (bucket_id like 'order-%' and private.is_admin());
 
 drop policy if exists "Public can upload order files" on storage.objects;
 drop policy if exists "Admins can read order storage files" on storage.objects;

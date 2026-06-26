@@ -87,6 +87,10 @@ Deno.serve(async req => {
 
     try {
         assertCheckout(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY, 'Checkout backend is not configured.', 503);
+        if ((req.headers.get('content-type') || '').includes('application/json')) {
+            return await handleCheckoutJsonRequest(req, headers);
+        }
+
         const payload = await readCheckoutPayload(req);
         await verifyTurnstileToken(payload.verification, req);
         const result = await insertCheckoutOrder(payload);
@@ -100,6 +104,18 @@ Deno.serve(async req => {
         return jsonResponse({ ok: false, error: 'Checkout submission failed.' }, 500, headers);
     }
 });
+
+async function handleCheckoutJsonRequest(req: Request, headers: Record<string, string>) {
+    const payload = await req.json().catch(() => null) as Record<string, unknown> | null;
+    assertCheckout(payload && typeof payload === 'object', 'Invalid checkout request.');
+
+    if (payload.action === 'validatePromo') {
+        const promo = await getActivePromoForServer(cleanText(payload.code, 80));
+        return jsonResponse({ ok: true, promo }, 200, headers);
+    }
+
+    throw new CheckoutValidationError('Unsupported checkout request.', 400);
+}
 
 function readCsv(value: string) {
     return value.split(',').map(item => item.trim()).filter(Boolean);

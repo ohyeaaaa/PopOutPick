@@ -1855,8 +1855,8 @@ async function validatePromoCode(code) {
     checkoutState.promoValidation = { code: normalizedCode, phase: 'checking', promo: null };
     buildCheckout();
 
-    const client = getSupabaseClient();
-    if (!client) {
+    const checkoutApiUrl = getCheckoutApiUrl();
+    if (!checkoutApiUrl) {
         checkoutState.promoValidation = {
             code: normalizedCode,
             phase: 'error',
@@ -1867,19 +1867,24 @@ async function validatePromoCode(code) {
     }
 
     try {
-        const { data, error } = await client.rpc('get_active_promo_code', { p_code: normalizedCode });
-        if (error) throw error;
+        const response = await fetch(checkoutApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'validatePromo', code: normalizedCode })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.ok === false) throw new Error(data.error || 'Promo validation failed.');
         if (requestId !== promoValidationRequestId) return;
 
-        const row = Array.isArray(data) ? data[0] : null;
+        const row = data.promo || null;
         checkoutState.promoValidation = {
             code: normalizedCode,
             phase: row ? 'success' : 'error',
             promo: row ? {
                 code: row.code,
                 label: row.label,
-                type: row.discount_type,
-                value: Number(row.discount_value) || 0
+                type: row.type || row.discount_type,
+                value: Number(row.value ?? row.discount_value) || 0
             } : null
         };
     } catch (error) {
