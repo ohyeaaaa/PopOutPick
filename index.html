@@ -1399,6 +1399,15 @@
             document.body.style.setProperty('--home-gradient-opacity', gradientOpacity.toFixed(4));
         }
 
+        let homeRevealFrame = null;
+        function scheduleHomeRevealProgress() {
+            if (homeRevealFrame !== null) return;
+            homeRevealFrame = requestAnimationFrame(() => {
+                homeRevealFrame = null;
+                updateHomeRevealProgress();
+            });
+        }
+
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 isGridInView = entry.isIntersecting;
@@ -1410,7 +1419,7 @@
 
         if (gridWrapper) observer.observe(gridWrapper);
         updateHomeRevealProgress();
-        window.addEventListener('scroll', () => requestAnimationFrame(updateHomeRevealProgress), { passive: true });
+        window.addEventListener('scroll', scheduleHomeRevealProgress, { passive: true });
         window.addEventListener('resize', updateHomeRevealProgress);
 
 
@@ -1421,7 +1430,16 @@
             video.src = source;
             video.dataset.loaded = 'true';
             video.load();
-            video.play().catch(() => {});
+        }
+
+        function setDeferredVideoPlayback(video, active) {
+            if (!video) return;
+            if (active) {
+                loadDeferredVideo(video);
+                video.play().catch(() => {});
+                return;
+            }
+            video.pause();
         }
 
         function initDeferredVideos() {
@@ -1435,9 +1453,7 @@
 
             const videoObserver = new IntersectionObserver((entries) => {
                 entries.forEach((entry) => {
-                    if (!entry.isIntersecting) return;
-                    loadDeferredVideo(entry.target);
-                    videoObserver.unobserve(entry.target);
+                    setDeferredVideoPlayback(entry.target, entry.isIntersecting);
                 });
             }, { rootMargin: isMobileViewport() ? '80px' : '220px' });
 
@@ -1796,6 +1812,8 @@
         let scrollCameraRadius = 0;
         let scrollCameraHeight = 0;
         let scrollGlbAnimationFrame = null;
+        let scrollGlbVisible = false;
+        let scrollGlbScrollFrame = null;
         let scrollColorAnimationStart = null;
         const scrollPaletteDuration = 4000;
         const scrollModelMaterials = [];
@@ -1868,6 +1886,10 @@
                     scrollGlbAnimationFrame = null;
                     return;
                 }
+                if (!scrollGlbVisible) {
+                    scrollGlbAnimationFrame = null;
+                    return;
+                }
 
                 updateScrollPartColors(timestamp);
                 updateScrollGlbRotation();
@@ -1875,6 +1897,12 @@
             };
 
             scrollGlbAnimationFrame = requestAnimationFrame(animateScrollGlb);
+        }
+
+        function stopScrollGlbAnimationLoop() {
+            if (!scrollGlbAnimationFrame) return;
+            cancelAnimationFrame(scrollGlbAnimationFrame);
+            scrollGlbAnimationFrame = null;
         }
 
         function initScrollGlbViewer() {
@@ -1912,7 +1940,8 @@
         }
 
         function updateScrollGlbRotation() {
-            if (!scrollRenderer || !scrollScene || !scrollCamera || !scrollModelGroup) return;
+            scrollGlbScrollFrame = null;
+            if (!scrollGlbVisible || !scrollRenderer || !scrollScene || !scrollCamera || !scrollModelGroup) return;
 
             const cardRect = scrollGlbCard ? scrollGlbCard.getBoundingClientRect() : null;
             const viewportCenter = window.innerHeight / 2;
@@ -1925,6 +1954,11 @@
             scrollCamera.position.set(Math.sin(angle) * radius, scrollCameraHeight, Math.cos(angle) * radius);
             scrollCamera.lookAt(0, 0, 0);
             scrollRenderer.render(scrollScene, scrollCamera);
+        }
+
+        function scheduleScrollGlbRotation() {
+            if (!scrollGlbVisible || scrollGlbScrollFrame !== null) return;
+            scrollGlbScrollFrame = requestAnimationFrame(updateScrollGlbRotation);
         }
 
         function resizeScrollGlbViewer() {
@@ -1943,20 +1977,29 @@
             if (scrollGlbStarted) return;
             scrollGlbStarted = true;
             initScrollGlbViewer();
-            window.addEventListener('scroll', () => requestAnimationFrame(updateScrollGlbRotation));
+            window.addEventListener('scroll', scheduleScrollGlbRotation, { passive: true });
             window.addEventListener('resize', resizeScrollGlbViewer);
-            updateScrollGlbRotation();
         }
 
         if ('IntersectionObserver' in window && scrollGlbCard) {
-            const scrollGlbObserver = new IntersectionObserver((entries, observerInstance) => {
-                if (!entries.some(entry => entry.isIntersecting)) return;
+            const scrollGlbObserver = new IntersectionObserver((entries) => {
+                const isVisible = entries.some(entry => entry.isIntersecting);
+                scrollGlbVisible = isVisible;
+                if (!isVisible) {
+                    stopScrollGlbAnimationLoop();
+                    return;
+                }
+
                 startScrollGlbViewer();
-                observerInstance.disconnect();
+                updateScrollGlbRotation();
+                startScrollGlbAnimationLoop();
             }, { rootMargin: isMobileViewport() ? '80px' : '220px' });
             scrollGlbObserver.observe(scrollGlbCard);
         } else {
+            scrollGlbVisible = true;
             startScrollGlbViewer();
+            updateScrollGlbRotation();
+            startScrollGlbAnimationLoop();
         }
 
         /* ==========================================
@@ -1966,6 +2009,7 @@
         let individualPartPreviewGrid = null;
         let individualPartPreviewRenderer = null;
         let individualPartPreviewFrameId = null;
+        let individualPartPreviewVisible = false;
 
         function createIndividualPartRenderer(grid) {
             if (individualPartPreviewRenderer) return individualPartPreviewRenderer;
@@ -2065,6 +2109,8 @@
         }
 
         function renderIndividualPartPreviews() {
+            individualPartPreviewFrameId = null;
+            if (!individualPartPreviewVisible && !shouldReduceMotion()) return;
             if (!individualPartPreviewGrid || !individualPartPreviewRenderer) return;
             resizeIndividualPartRenderer();
 
@@ -2093,16 +2139,38 @@
             if (!shouldReduceMotion()) individualPartPreviewFrameId = requestAnimationFrame(renderIndividualPartPreviews);
         }
 
+        function startIndividualPartPreviewLoop() {
+            if (shouldReduceMotion()) {
+                renderIndividualPartPreviews();
+                return;
+            }
+            if (individualPartPreviewFrameId === null) {
+                individualPartPreviewFrameId = requestAnimationFrame(renderIndividualPartPreviews);
+            }
+        }
+
+        function stopIndividualPartPreviewLoop() {
+            if (individualPartPreviewFrameId === null) return;
+            cancelAnimationFrame(individualPartPreviewFrameId);
+            individualPartPreviewFrameId = null;
+        }
+
         const spinningAnimationCard = document.getElementById('spinning-animation-card');
         if ('IntersectionObserver' in window && spinningAnimationCard) {
-            const partPreviewObserver = new IntersectionObserver((entries, observerInstance) => {
-                if (!entries.some(entry => entry.isIntersecting)) return;
+            const partPreviewObserver = new IntersectionObserver((entries) => {
+                individualPartPreviewVisible = entries.some(entry => entry.isIntersecting);
+                if (!individualPartPreviewVisible) {
+                    stopIndividualPartPreviewLoop();
+                    return;
+                }
                 startIndividualPartPreviews();
-                observerInstance.disconnect();
+                startIndividualPartPreviewLoop();
             }, { rootMargin: '250px' });
             partPreviewObserver.observe(spinningAnimationCard);
         } else {
+            individualPartPreviewVisible = true;
             startIndividualPartPreviews();
+            startIndividualPartPreviewLoop();
         }
 
         window.addEventListener('resize', () => {

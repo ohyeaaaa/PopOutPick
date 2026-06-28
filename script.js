@@ -427,9 +427,24 @@ function restoreCartFromStorage() {
 
 // 3D SCENE CONFIGURATION
 let scene, camera, renderer, controls, assemblyGroup;
+let mainAnimationFrame = null;
 const modelCache = {};
 const rawModelCache = {};
 const designTextureCache = {};
+
+function getViewportPixelRatio(maxDesktop = 1.5, maxMobile = 1) {
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+    return Math.min(window.devicePixelRatio || 1, isMobile ? maxMobile : maxDesktop);
+}
+
+function isElementInViewport(element, margin = 120) {
+    if (!element || !element.isConnected || document.hidden) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.bottom >= -margin
+        && rect.right >= -margin
+        && rect.top <= window.innerHeight + margin
+        && rect.left <= window.innerWidth + margin;
+}
 
 // Arrays to store the 4 miniature engines inside the slot cards
 let slotScenes = [null, null, null, null];
@@ -451,8 +466,10 @@ function initEngine(containerId) {
             container.appendChild(renderer.domElement);
         }
         renderer.setSize(width, height);
+        renderer.setPixelRatio(getViewportPixelRatio());
         camera.aspect = width / height; 
         camera.updateProjectionMatrix(); 
+        startMainAnimationLoop();
         return;
     }
     
@@ -467,7 +484,7 @@ function initEngine(containerId) {
     
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(getViewportPixelRatio());
     container.appendChild(renderer.domElement);
     
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
@@ -481,7 +498,7 @@ function initEngine(containerId) {
     controls.enableDamping = true;
     controls.target.set(0, 0, 0);
     
-    animate();
+    startMainAnimationLoop();
 }
 
 function syncCameraOrbit() {
@@ -492,16 +509,26 @@ function syncCameraOrbit() {
     camera.lookAt(controls.target);
 }
 
+function startMainAnimationLoop() {
+    if (mainAnimationFrame !== null) return;
+    mainAnimationFrame = requestAnimationFrame(animate);
+}
+
 function animate() {
-    requestAnimationFrame(animate);
+    mainAnimationFrame = null;
+    const canvas = renderer?.domElement;
+    if (!renderer || !scene || !camera || !canvas || !isElementInViewport(canvas, 220)) return;
     syncCameraOrbit();
     if (controls) {
         controls.update();
     }
-    if (renderer && scene && camera) {
-        renderer.render(scene, camera);
-    }
+    renderer.render(scene, camera);
+    mainAnimationFrame = requestAnimationFrame(animate);
 }
+
+window.addEventListener('scroll', startMainAnimationLoop, { passive: true });
+window.addEventListener('resize', startMainAnimationLoop);
+document.addEventListener('visibilitychange', startMainAnimationLoop);
 
 // SLOT CARDS 3D VIEWPORT INITIALIZATION
 function initSlotEngine(index) {
@@ -515,6 +542,7 @@ function initSlotEngine(index) {
     if (slotRenderers[index]) {
         container.appendChild(slotRenderers[index].domElement);
         slotRenderers[index].setSize(width, height);
+        slotRenderers[index].setPixelRatio(getViewportPixelRatio());
         slotCameras[index].aspect = width / height;
         slotCameras[index].updateProjectionMatrix();
         return;
@@ -526,7 +554,7 @@ function initSlotEngine(index) {
 
     const sRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     sRenderer.setSize(width, height);
-    sRenderer.setPixelRatio(window.devicePixelRatio);
+    sRenderer.setPixelRatio(getViewportPixelRatio());
     container.appendChild(sRenderer.domElement);
 
     sScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.4));
@@ -1532,7 +1560,7 @@ function mountShopPartPreview(product, containerId, fallbackName = '') {
     const previewCamera = new THREE.PerspectiveCamera(38, width / height, 0.1, 1000);
     const previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     previewRenderer.setSize(width, height);
-    previewRenderer.setPixelRatio(window.devicePixelRatio || 1);
+    previewRenderer.setPixelRatio(getViewportPixelRatio());
     container.appendChild(previewRenderer.domElement);
 
     previewScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.35));
@@ -1557,8 +1585,10 @@ function mountShopPartPreview(product, containerId, fallbackName = '') {
 
     function animateShopPartPreview() {
         if (!container.isConnected) return;
-        previewGroup.rotation.y += spec.spinSpeed;
-        previewRenderer.render(previewScene, previewCamera);
+        if (isElementInViewport(container, 140)) {
+            previewGroup.rotation.y += spec.spinSpeed;
+            previewRenderer.render(previewScene, previewCamera);
+        }
         requestAnimationFrame(animateShopPartPreview);
     }
     animateShopPartPreview();
@@ -2021,7 +2051,7 @@ function mountCheckoutPreview(item, containerTarget) {
 
     const previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     previewRenderer.setSize(width, height);
-    previewRenderer.setPixelRatio(window.devicePixelRatio || 1);
+    previewRenderer.setPixelRatio(getViewportPixelRatio());
     container.appendChild(previewRenderer.domElement);
 
     previewScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.35));
@@ -2066,8 +2096,10 @@ function mountCheckoutPreview(item, containerTarget) {
 
     function animatePreview() {
         if (!container.isConnected) return;
-        previewGroup.rotation.y += 0.012;
-        previewRenderer.render(previewScene, previewCamera);
+        if (isElementInViewport(container, 160)) {
+            previewGroup.rotation.y += 0.012;
+            previewRenderer.render(previewScene, previewCamera);
+        }
         requestAnimationFrame(animatePreview);
     }
     animatePreview();
