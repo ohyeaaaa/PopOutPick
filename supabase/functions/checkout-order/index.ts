@@ -24,11 +24,11 @@ const COMMERCE_CONFIG = {
     meetupShippingPrice: 0,
     deliveryShippingPrice: 2.6,
     shopProducts: [
-        { id: 'custom-pick-holder', name: 'Pick Holder Module', description: 'Replacement pick holder module', price: 0.5, previewPart: 'module' },
-        { id: 'slider', name: 'Slider', description: 'Replacement slider for both Guitar and Bass PopOutPick sets', price: 1, previewPart: 'slider' },
-        { id: 'top-plate', name: 'Top Plate', description: 'Replacement top plate', price: 1, previewPart: 'top' },
-        { id: 'base-plate', name: 'Base Plate', description: 'Replacement base plate', price: 1, previewPart: 'bottom' },
-        { id: 'guitar-pick-holder', name: 'Pick Holder', description: 'Replacement pick holder. Choose type, size and colours after clicking.', price: 0.5, previewPart: 'holder:10mm', shopPartType: 'holder' }
+        { id: 'custom-pick-holder', name: 'Pick Holder Module', description: 'Replacement pick holder module', price: 0.5, previewPart: 'module', previewZoom: 1.6, icon: '', symbol: '\u266a' },
+        { id: 'slider', name: 'Slider', description: 'Replacement slider for both Guitar and Bass PopOutPick sets', price: 1, previewPart: 'slider', previewZoom: 1.5, icon: '', symbol: '\u2194' },
+        { id: 'top-plate', name: 'Top Plate', description: 'Replacement top plate', price: 1, previewPart: 'top', previewRotation: [1.35, 0, 0], previewZoom: 1.35, icon: '', symbol: '\u25b2' },
+        { id: 'base-plate', name: 'Base Plate', description: 'Replacement base plate', price: 1, previewPart: 'bottom', previewRotation: [1.35, 0, 0], previewZoom: 1.35, icon: '', symbol: '\u25bc' },
+        { id: 'guitar-pick-holder', name: 'Pick Holder', description: 'Replacement pick holder. Choose type, size and colours after clicking.', price: 0.5, previewPart: 'holder:10mm', shopPartType: 'holder', previewZoom: 1.55, icon: '', symbol: '#' }
     ],
     designAddOns: {
         slider: { label: 'Add a 2D design for $2', price: 2, type: '2D' },
