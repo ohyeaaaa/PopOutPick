@@ -359,6 +359,14 @@
             display: block;
         }
 
+        .glb-snapshot {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            pointer-events: none;
+        }
+
         .glb-icon {
             font-size: 28px;
             color: var(--text-secondary);
@@ -1413,7 +1421,6 @@
                 isGridInView = entry.isIntersecting;
                 if (!isMobileViewport()) return;
                 if (entry.isIntersecting) startHeroGlbDropzones();
-                else stopHeroGlbDropzones();
             });
         }, { threshold: 0, rootMargin: isMobileViewport() ? '260px 0px' : '0px' });
 
@@ -1465,7 +1472,7 @@
         const glbLoaders = [];
         const glbColorPalette = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae];
         const glbCardColors = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae, 0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5];
-        const glbAssetVersion = '20260628-mobile-glb-context';
+        const glbAssetVersion = '20260628-mobile-hero-snapshots';
         const glbCardView = [
             { zoom: 1.35, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
             { zoom: 1.25, targetSize: 5.2, rotation: [1.35, 0.1, 0] },
@@ -1548,7 +1555,7 @@
             const height = viewer.clientHeight || box.clientHeight || 160;
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true, preserveDrawingBuffer: false });
+            const renderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true, preserveDrawingBuffer: isMobileViewport() });
             renderer.setClearColor(0x000000, 0);
             renderer.setSize(width, height);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
@@ -1628,6 +1635,7 @@
                 fitModelToView(model, camera, view.zoom, view.targetSize);
                 box.classList.add('is-loaded');
                 renderer.render(scene, camera);
+                snapshotMobileModel();
             }, undefined, (error) => {
                 if (disposed) return;
                 console.error(`Failed to load ${file}`, error);
@@ -1644,13 +1652,32 @@
                 camera.updateProjectionMatrix();
             }
 
-            function dispose() {
-                if (disposed) return;
+            function releaseRenderer() {
                 disposed = true;
                 disposeObject(group);
                 renderer.dispose();
                 if (renderer.forceContextLoss) renderer.forceContextLoss();
                 renderer.domElement.remove();
+            }
+
+            function snapshotMobileModel() {
+                if (!isMobileViewport() || disposed) return;
+                try {
+                    const snapshot = new Image();
+                    snapshot.className = 'glb-snapshot';
+                    snapshot.alt = '';
+                    snapshot.decoding = 'async';
+                    snapshot.src = renderer.domElement.toDataURL('image/png');
+                    viewer.appendChild(snapshot);
+                    releaseRenderer();
+                } catch (error) {
+                    console.warn(`Could not snapshot ${file}`, error);
+                }
+            }
+
+            function dispose() {
+                if (disposed) return;
+                releaseRenderer();
                 box.classList.remove('model-contrast-white', 'model-is-loaded', 'is-loaded');
             }
 
@@ -1712,7 +1739,7 @@
                         box.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
                     }
                 }
-                if (glbSlot && !glbSlot.isDisposed() && !shouldReduceMotion()) {
+                if (glbSlot && !glbSlot.isDisposed() && !shouldReduceMotion() && (isGridInView || !isMobileViewport())) {
                     glbSlot.group.rotation.y += 0.008;
                     glbSlot.group.scale.set(
                         1 + Math.sin(time * 0.0012 + index) * 0.035,
@@ -1912,7 +1939,7 @@
             const height = scrollGlbViewer.clientHeight || 500;
             scrollScene = new THREE.Scene();
             scrollCamera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            scrollRenderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true });
+            scrollRenderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true, preserveDrawingBuffer: isMobileViewport() });
             scrollRenderer.setSize(width, height);
             scrollRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
             scrollGlbViewer.appendChild(scrollRenderer.domElement);
@@ -1934,6 +1961,7 @@
                 scrollCameraRadius = Math.hypot(scrollCamera.position.x, scrollCamera.position.z);
                 scrollCameraHeight = scrollCamera.position.y;
                 scrollModelGroup.rotation.set(Math.PI / 248, 0, 0);
+                scrollGlbVisible = true;
                 updateScrollGlbRotation();
                 startScrollGlbAnimationLoop();
             });
@@ -1993,7 +2021,7 @@
                 startScrollGlbViewer();
                 updateScrollGlbRotation();
                 startScrollGlbAnimationLoop();
-            }, { rootMargin: isMobileViewport() ? '80px' : '220px' });
+            }, { rootMargin: isMobileViewport() ? '560px 0px' : '220px' });
             scrollGlbObserver.observe(scrollGlbCard);
         } else {
             scrollGlbVisible = true;
@@ -2018,7 +2046,7 @@
             const renderer = new THREE.WebGLRenderer({
                 antialias: !isMobileViewport(),
                 alpha: true,
-                preserveDrawingBuffer: false
+                preserveDrawingBuffer: isMobileViewport()
             });
             renderer.setClearColor(0x000000, 0);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
@@ -2076,7 +2104,7 @@
                 model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
                 fitModelToView(model, camera, view.zoom, view.targetSize);
                 card.classList.add('is-loaded');
-                if (shouldReduceMotion()) renderIndividualPartPreviews();
+                renderIndividualPartPreviews();
             }, undefined, (error) => {
                 console.error(`Failed to load ${file}`, error);
             });
@@ -2165,7 +2193,7 @@
                 }
                 startIndividualPartPreviews();
                 startIndividualPartPreviewLoop();
-            }, { rootMargin: '250px' });
+            }, { rootMargin: isMobileViewport() ? '560px 0px' : '250px' });
             partPreviewObserver.observe(spinningAnimationCard);
         } else {
             individualPartPreviewVisible = true;

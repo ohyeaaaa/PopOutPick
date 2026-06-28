@@ -309,26 +309,57 @@ async function runPage(client, scenario) {
             const text = selector => document.querySelector(selector)?.innerText || '';
             const menuButton = document.querySelector('.menu-btn, .icon-btn[aria-label="Menu"]');
             const telegramButton = document.querySelector('.icon-btn[aria-label^="Telegram"], .icon-btn[aria-label^="Add Telegram"]');
+            function sampleCanvas(canvas) {
+                if (!canvas || canvas.width < 1 || canvas.height < 1) {
+                    return { readable: false, nonTransparent: 0, varied: 0, error: 'missing-canvas' };
+                }
+
+                try {
+                    const sample = document.createElement('canvas');
+                    sample.width = 18;
+                    sample.height = 18;
+                    const context = sample.getContext('2d', { willReadFrequently: true });
+                    context.drawImage(canvas, 0, 0, sample.width, sample.height);
+                    const data = context.getImageData(0, 0, sample.width, sample.height).data;
+                    let nonTransparent = 0;
+                    let varied = 0;
+                    for (let index = 0; index < data.length; index += 4) {
+                        const alpha = data[index + 3];
+                        if (alpha > 8) nonTransparent += 1;
+                        if (alpha > 8 && (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245)) varied += 1;
+                    }
+                    return { readable: true, nonTransparent, varied, error: '' };
+                } catch (error) {
+                    return { readable: false, nonTransparent: 0, varied: 0, error: error.message || 'sample-failed' };
+                }
+            }
             const heroGlbCards = Array.from(document.querySelectorAll('.glb-dropzone'));
             const heroGlbItems = heroGlbCards.map(card => {
                 const canvas = card.querySelector('canvas');
+                const snapshot = card.querySelector('.glb-snapshot');
                 const rect = canvas ? canvas.getBoundingClientRect() : null;
                 const context = canvas
                     ? canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
                     : null;
+                const pixels = sampleCanvas(canvas);
                 return {
                     label: card.getAttribute('aria-label') || card.innerText.trim(),
                     hasCanvas: Boolean(canvas),
+                    hasSnapshot: Boolean(snapshot),
                     loaded: card.classList.contains('model-is-loaded'),
                     contextLost: Boolean(context && typeof context.isContextLost === 'function' && context.isContextLost()),
-                    width: rect ? rect.width : 0,
-                    height: rect ? rect.height : 0
+                    width: rect ? rect.width : (snapshot ? snapshot.getBoundingClientRect().width : 0),
+                    height: rect ? rect.height : (snapshot ? snapshot.getBoundingClientRect().height : 0),
+                    pixels
                 };
             });
             const partPreviewCards = Array.from(document.querySelectorAll('.part-preview-card'));
             const firstPartPreviewCard = partPreviewCards[0] || null;
             const firstPartPreviewRect = firstPartPreviewCard ? firstPartPreviewCard.getBoundingClientRect() : null;
             const sharedPartPreviewCanvas = document.querySelector('.individual-parts-grid > canvas');
+            const scrollGlbCanvas = document.querySelector('#scroll-glb-viewer canvas');
+            const partPreviewPixels = sampleCanvas(sharedPartPreviewCanvas);
+            const scrollGlbPixels = sampleCanvas(scrollGlbCanvas);
             let mobileMenuLinkCount = 0;
             if (menuButton && window.innerWidth < 700) {
                 menuButton.click();
@@ -347,11 +378,17 @@ async function runPage(client, scenario) {
                 heroGlb: {
                     cards: heroGlbItems.length,
                     canvases: heroGlbItems.filter(item => item.hasCanvas).length,
+                    snapshots: heroGlbItems.filter(item => item.hasSnapshot).length,
                     loaded: heroGlbItems.filter(item => item.loaded).length,
                     contextLost: heroGlbItems.filter(item => item.contextLost).length,
+                    visibleCanvases: heroGlbItems.filter(item => item.pixels.nonTransparent > 8 && item.pixels.varied > 4).length,
                     blankLabels: heroGlbItems
-                        .filter(item => !item.hasCanvas || !item.loaded || item.contextLost || item.width < 1 || item.height < 1)
+                        .filter(item => !(item.hasCanvas || item.hasSnapshot) || !item.loaded || item.contextLost || item.width < 1 || item.height < 1)
                         .map(item => item.label)
+                },
+                scrollGlb: {
+                    canvas: Boolean(scrollGlbCanvas),
+                    pixels: scrollGlbPixels
                 },
                 partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
                 partPreview: {
@@ -359,6 +396,7 @@ async function runPage(client, scenario) {
                     bodyLoaded: Boolean(firstPartPreviewCard?.classList.contains('is-loaded')),
                     bodyHeight: firstPartPreviewRect ? firstPartPreviewRect.height : 0,
                     sharedCanvasZIndex: sharedPartPreviewCanvas ? getComputedStyle(sharedPartPreviewCanvas).zIndex : '',
+                    pixels: partPreviewPixels,
                     snapshot: window.__smokePartPreviewState || null
                 },
                 proof: Boolean(document.querySelector('.product-proof')),
@@ -416,7 +454,9 @@ function assertResult(result) {
     }
     if (result.path === '/') {
         const heroGlb = result.metrics.heroGlb || {};
-        if (heroGlb.cards !== 9 || heroGlb.canvases !== 9 || heroGlb.loaded !== 9 || heroGlb.contextLost > 0) {
+        const isMobileHome = result.viewport.startsWith('390x');
+        const heroMediaCount = isMobileHome ? heroGlb.snapshots : heroGlb.canvases;
+        if (heroGlb.cards !== 9 || heroMediaCount !== 9 || heroGlb.loaded !== 9 || heroGlb.contextLost > 0 || heroGlb.blankLabels?.length) {
             problems.push(`hero GLB modules did not all render: ${JSON.stringify(heroGlb)}`);
         }
         if (result.name.includes('secondary previews') && result.metrics.partPreviewCanvases !== 1) {
@@ -430,6 +470,12 @@ function assertResult(result) {
             }
             if (snapshot.partPreviewCanvases !== 1) {
                 problems.push(`mobile 3D_VIEWPORT should use one shared canvas, found ${snapshot.partPreviewCanvases}`);
+            }
+            if ((snapshot.scrollGlbPixels?.nonTransparent || 0) <= 8 || (snapshot.scrollGlbPixels?.varied || 0) <= 4) {
+                problems.push(`mobile KINEMATIC_TEST canvas looked blank: ${JSON.stringify(snapshot.scrollGlbPixels)}`);
+            }
+            if ((snapshot.partPreviewPixels?.nonTransparent || 0) <= 8 || (snapshot.partPreviewPixels?.varied || 0) <= 4) {
+                problems.push(`mobile 3D_VIEWPORT canvas looked blank: ${JSON.stringify(snapshot.partPreviewPixels)}`);
             }
         }
     }
@@ -578,16 +624,45 @@ async function main() {
             })()`;
 
             const setupHomeMobileSecondaryPreviews = `(async () => {
+                function sampleCanvas(canvas) {
+                    if (!canvas || canvas.width < 1 || canvas.height < 1) return { readable: false, nonTransparent: 0, varied: 0, error: 'missing-canvas' };
+                    try {
+                        const sample = document.createElement('canvas');
+                        sample.width = 18;
+                        sample.height = 18;
+                        const context = sample.getContext('2d', { willReadFrequently: true });
+                        context.drawImage(canvas, 0, 0, sample.width, sample.height);
+                        const data = context.getImageData(0, 0, sample.width, sample.height).data;
+                        let nonTransparent = 0;
+                        let varied = 0;
+                        for (let index = 0; index < data.length; index += 4) {
+                            const alpha = data[index + 3];
+                            if (alpha > 8) nonTransparent += 1;
+                            if (alpha > 8 && (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245)) varied += 1;
+                        }
+                        return { readable: true, nonTransparent, varied, error: '' };
+                    } catch (error) {
+                        return { readable: false, nonTransparent: 0, varied: 0, error: error.message || 'sample-failed' };
+                    }
+                }
+                const scrollTarget = document.getElementById('scroll-animation-card');
+                if (scrollTarget) scrollTarget.scrollIntoView({ block: 'center' });
+                await new Promise(resolve => setTimeout(resolve, 3500));
+                const scrollGlbPixels = sampleCanvas(document.querySelector('#scroll-glb-viewer canvas'));
+
                 const target = document.getElementById('spinning-animation-card');
                 if (target) target.scrollIntoView({ block: 'center' });
                 await new Promise(resolve => setTimeout(resolve, 3500));
                 const bodyCard = document.querySelector('.part-preview-card');
                 const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
+                const partPreviewPixels = sampleCanvas(document.querySelector('.individual-parts-grid > canvas'));
                 window.__smokePartPreviewState = {
                     bodyLoaded: Boolean(bodyCard?.classList.contains('is-loaded')),
                     bodyHeight: bodyRect ? bodyRect.height : 0,
                     loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
-                    partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length
+                    partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                    scrollGlbPixels,
+                    partPreviewPixels
                 };
                 window.scrollTo(0, 0);
                 await new Promise(resolve => setTimeout(resolve, 3500));
