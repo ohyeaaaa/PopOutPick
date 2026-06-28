@@ -325,6 +325,10 @@ async function runPage(client, scenario) {
                     height: rect ? rect.height : 0
                 };
             });
+            const partPreviewCards = Array.from(document.querySelectorAll('.part-preview-card'));
+            const firstPartPreviewCard = partPreviewCards[0] || null;
+            const firstPartPreviewRect = firstPartPreviewCard ? firstPartPreviewCard.getBoundingClientRect() : null;
+            const sharedPartPreviewCanvas = document.querySelector('.individual-parts-grid > canvas');
             let mobileMenuLinkCount = 0;
             if (menuButton && window.innerWidth < 700) {
                 menuButton.click();
@@ -350,6 +354,13 @@ async function runPage(client, scenario) {
                         .map(item => item.label)
                 },
                 partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                partPreview: {
+                    loadedCards: partPreviewCards.filter(card => card.classList.contains('is-loaded')).length,
+                    bodyLoaded: Boolean(firstPartPreviewCard?.classList.contains('is-loaded')),
+                    bodyHeight: firstPartPreviewRect ? firstPartPreviewRect.height : 0,
+                    sharedCanvasZIndex: sharedPartPreviewCanvas ? getComputedStyle(sharedPartPreviewCanvas).zIndex : '',
+                    snapshot: window.__smokePartPreviewState || null
+                },
                 proof: Boolean(document.querySelector('.product-proof')),
                 checkout: Boolean(document.querySelector('#checkout-box')),
                 trustCards: document.querySelectorAll('.checkout-trust-card > div').length,
@@ -410,6 +421,16 @@ function assertResult(result) {
         }
         if (result.name.includes('secondary previews') && result.metrics.partPreviewCanvases !== 1) {
             problems.push(`secondary part previews should use one shared canvas, found ${result.metrics.partPreviewCanvases}`);
+        }
+        if (result.name.includes('mobile after secondary previews')) {
+            const partPreview = result.metrics.partPreview || {};
+            const snapshot = partPreview.snapshot || {};
+            if (!snapshot.bodyLoaded || snapshot.bodyHeight < 160) {
+                problems.push(`mobile 3D_VIEWPORT body preview did not render visibly: ${JSON.stringify(partPreview)}`);
+            }
+            if (snapshot.partPreviewCanvases !== 1) {
+                problems.push(`mobile 3D_VIEWPORT should use one shared canvas, found ${snapshot.partPreviewCanvases}`);
+            }
         }
     }
     if (result.name.includes('checkout') && result.metrics.trustCards < 3) {
@@ -556,10 +577,27 @@ async function main() {
                 await new Promise(resolve => setTimeout(resolve, 1500));
             })()`;
 
+            const setupHomeMobileSecondaryPreviews = `(async () => {
+                const target = document.getElementById('spinning-animation-card');
+                if (target) target.scrollIntoView({ block: 'center' });
+                await new Promise(resolve => setTimeout(resolve, 3500));
+                const bodyCard = document.querySelector('.part-preview-card');
+                const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
+                window.__smokePartPreviewState = {
+                    bodyLoaded: Boolean(bodyCard?.classList.contains('is-loaded')),
+                    bodyHeight: bodyRect ? bodyRect.height : 0,
+                    loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
+                    partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length
+                };
+                window.scrollTo(0, 0);
+                await new Promise(resolve => setTimeout(resolve, 3500));
+            })()`;
+
             const scenarios = [
                 { name: 'home desktop', path: '/', width: 1366, height: 900 },
                 { name: 'home desktop after secondary previews', path: '/', width: 1366, height: 900, setup: setupHomeSecondaryPreviews },
                 { name: 'home mobile', path: '/', width: 390, height: 844 },
+                { name: 'home mobile after secondary previews', path: '/', width: 390, height: 844, setup: setupHomeMobileSecondaryPreviews },
                 { name: 'final review desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupFinalReview },
                 { name: 'checkout desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupCheckout },
                 { name: 'checkout mobile', path: '/configurator.html', width: 390, height: 844, setup: setupCheckout },

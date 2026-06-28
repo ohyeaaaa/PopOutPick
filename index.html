@@ -755,7 +755,7 @@
         .part-preview-shared-canvas {
             position: absolute;
             inset: 0;
-            z-index: 0;
+            z-index: 1;
             width: 100% !important;
             height: 100% !important;
             display: block;
@@ -764,11 +764,11 @@
 
         .part-preview-card {
             position: relative;
-            z-index: 1;
+            z-index: auto;
             min-height: 300px;
             border: 1px solid rgba(226, 88, 34, 0.26);
             border-radius: 16px;
-            background: rgba(0, 0, 0, 0.34);
+            background: rgba(0, 0, 0, 0.22);
             overflow: hidden;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 32px rgba(0, 0, 0, 0.34), 0 0 20px rgba(226, 88, 34, 0.10);
         }
@@ -1078,14 +1078,19 @@
             }
 
             .individual-parts-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 7px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
                 margin-top: 12px;
             }
 
             .part-preview-card {
-                min-height: clamp(88px, 26vw, 118px);
+                min-height: clamp(126px, 34vw, 156px);
                 border-radius: 8px;
+            }
+
+            .part-preview-card:first-of-type {
+                grid-column: 1 / -1;
+                min-height: clamp(176px, 48vw, 220px);
             }
 
             .part-preview-card span {
@@ -1184,12 +1189,17 @@
             }
 
             .individual-parts-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 7px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
             }
 
             .part-preview-card {
-                min-height: clamp(88px, 25vw, 108px);
+                min-height: clamp(122px, 34vw, 150px);
+            }
+
+            .part-preview-card:first-of-type {
+                grid-column: 1 / -1;
+                min-height: clamp(170px, 48vw, 210px);
             }
 
             .card {
@@ -1392,8 +1402,11 @@
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 isGridInView = entry.isIntersecting;
+                if (!isMobileViewport()) return;
+                if (entry.isIntersecting) startHeroGlbDropzones();
+                else stopHeroGlbDropzones();
             });
-        }, { threshold: 0 });
+        }, { threshold: 0, rootMargin: isMobileViewport() ? '260px 0px' : '0px' });
 
         if (gridWrapper) observer.observe(gridWrapper);
         updateHomeRevealProgress();
@@ -1436,7 +1449,7 @@
         const glbLoaders = [];
         const glbColorPalette = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae];
         const glbCardColors = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae, 0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5];
-        const glbAssetVersion = '20260628-shared-preview-renderer';
+        const glbAssetVersion = '20260628-mobile-glb-context';
         const glbCardView = [
             { zoom: 1.35, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
             { zoom: 1.25, targetSize: 5.2, rotation: [1.35, 0.1, 0] },
@@ -1447,6 +1460,17 @@
             { zoom: 1.5, targetSize: 3.2, rotation: [0.65, 0.35, 0] },
             { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] },
             { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] }
+        ];
+        const partPreviewCardView = [
+            { zoom: 1.18, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
+            { zoom: 1.28, targetSize: 3.5, rotation: [0.62, 0.35, 0.02] },
+            { zoom: 1.45, targetSize: 3.4, rotation: [0.4, 0.65, 0.04] },
+            { zoom: 1.32, targetSize: 3.4, rotation: [0.62, 0.28, -0.04] },
+            { zoom: 1.32, targetSize: 3.5, rotation: [0.62, 0.28, 0.04] },
+            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
+            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
+            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
+            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] }
         ];
         const mobileGlbPositions = [
             { x: -118, y: -142, z: -12, scale: 0.94, rot: -8 },
@@ -1503,6 +1527,7 @@
             const fileUrl = `${file}?v=${glbAssetVersion}`;
             if (!viewer || !file || !window.THREE) return null;
 
+            viewer.innerHTML = '';
             const width = viewer.clientWidth || box.clientWidth || 280;
             const height = viewer.clientHeight || box.clientHeight || 160;
             const scene = new THREE.Scene();
@@ -1526,8 +1551,18 @@
             const group = new THREE.Group();
             const materials = [];
             scene.add(group);
+            let disposed = false;
+
+            function disposeObject(object) {
+                object.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    const childMaterials = Array.isArray(child.material) ? child.material : [child.material];
+                    childMaterials.filter(Boolean).forEach((material) => material.dispose && material.dispose());
+                });
+            }
 
             function setColor(nextColor) {
+                if (disposed) return;
                 const visibleColor = getVisibleGlbColor(nextColor);
                 box.classList.toggle('model-contrast-white', visibleColor === 0x1a1a1a || visibleColor === 0xffffff);
                 box.classList.toggle('model-is-loaded', materials.length > 0);
@@ -1544,6 +1579,10 @@
 
             const loader = new THREE.GLTFLoader();
             loader.load(fileUrl, (gltf) => {
+                if (disposed) {
+                    disposeObject(gltf.scene);
+                    return;
+                }
                 const model = gltf.scene;
                 const initialColor = getGlbDisplayColor(index);
                 box.classList.toggle('model-contrast-white', initialColor === 0x1a1a1a || initialColor === 0xffffff);
@@ -1574,12 +1613,14 @@
                 box.classList.add('is-loaded');
                 renderer.render(scene, camera);
             }, undefined, (error) => {
+                if (disposed) return;
                 console.error(`Failed to load ${file}`, error);
                 box.classList.remove('model-contrast-white', 'model-is-loaded');
                 box.querySelector('.glb-icon').style.display = 'block';
             });
 
             function resize() {
+                if (disposed) return;
                 const nextWidth = viewer.clientWidth || box.clientWidth || width;
                 const nextHeight = viewer.clientHeight || box.clientHeight || height;
                 renderer.setSize(nextWidth, nextHeight);
@@ -1587,7 +1628,17 @@
                 camera.updateProjectionMatrix();
             }
 
-            return { scene, camera, renderer, group, resize, setRandomColor, setColor };
+            function dispose() {
+                if (disposed) return;
+                disposed = true;
+                disposeObject(group);
+                renderer.dispose();
+                if (renderer.forceContextLoss) renderer.forceContextLoss();
+                renderer.domElement.remove();
+                box.classList.remove('model-contrast-white', 'model-is-loaded', 'is-loaded');
+            }
+
+            return { scene, camera, renderer, group, resize, setRandomColor, setColor, dispose, isDisposed: () => disposed };
         }
 
         const glbDropzones = Array.from(document.querySelectorAll('.glb-dropzone'));
@@ -1597,7 +1648,10 @@
             box.dataset.started = 'true';
 
             const glbSlot = initGlbSlot(box, index);
-            if (glbSlot) glbLoaders.push(glbSlot);
+            if (glbSlot) {
+                box.__glbSlot = glbSlot;
+                glbLoaders.push(glbSlot);
+            }
 
             const homeX = ((index % 3) - 1) * 365;
             const homeY = (Math.floor(index / 3) - 1) * 205;
@@ -1614,6 +1668,7 @@
             const driftIntensityRot = 9;
 
             function animateSquares(time) {
+                if (box.dataset.started !== 'true') return;
                 const isMobileHero = isMobileViewport();
                 if (isGridInView) {
                     if (isMobileHero) {
@@ -1641,7 +1696,7 @@
                         box.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
                     }
                 }
-                if (glbSlot && !shouldReduceMotion()) {
+                if (glbSlot && !glbSlot.isDisposed() && !shouldReduceMotion()) {
                     glbSlot.group.rotation.y += 0.008;
                     glbSlot.group.scale.set(
                         1 + Math.sin(time * 0.0012 + index) * 0.035,
@@ -1650,15 +1705,35 @@
                     );
                     glbSlot.renderer.render(glbSlot.scene, glbSlot.camera);
                 }
-                if (!shouldReduceMotion()) requestAnimationFrame(animateSquares);
+                if (!shouldReduceMotion()) box.__heroAnimationFrameId = requestAnimationFrame(animateSquares);
             }
-            if (!shouldReduceMotion()) requestAnimationFrame(animateSquares);
+            if (!shouldReduceMotion()) box.__heroAnimationFrameId = requestAnimationFrame(animateSquares);
 
             box.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     console.log(`Grid item ${index + 1} activated via keyboard!`);
                 }
+            });
+        }
+
+        function stopHeroGlbDropzones() {
+            if (!isMobileViewport()) return;
+
+            glbDropzones.forEach((box) => {
+                if (box.__heroAnimationFrameId) {
+                    cancelAnimationFrame(box.__heroAnimationFrameId);
+                    box.__heroAnimationFrameId = null;
+                }
+
+                if (box.__glbSlot) {
+                    const loaderIndex = glbLoaders.indexOf(box.__glbSlot);
+                    if (loaderIndex >= 0) glbLoaders.splice(loaderIndex, 1);
+                    box.__glbSlot.dispose();
+                    box.__glbSlot = null;
+                }
+
+                delete box.dataset.started;
             });
         }
 
@@ -1918,7 +1993,7 @@
             individualPartPreviewRenderer.setSize(width, height, false);
         }
 
-        function initIndividualPartPreview(card) {
+        function initIndividualPartPreview(card, index) {
             const file = card.dataset.glb;
             if (!card || !file || !window.THREE) return null;
 
@@ -1946,9 +2021,16 @@
                         metalness: 0.08,
                         roughness: 0.52
                     });
+                    const edges = new THREE.LineSegments(
+                        new THREE.EdgesGeometry(child.geometry, 22),
+                        new THREE.LineBasicMaterial({ color: 0x1a0a04, transparent: true, opacity: 0.48 })
+                    );
+                    child.add(edges);
                 });
                 group.add(model);
-                fitModelToView(model, camera);
+                const view = partPreviewCardView[index] || { zoom: 1.45, targetSize: 3.4, rotation: [0.62, 0.28, 0] };
+                model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
+                fitModelToView(model, camera, view.zoom, view.targetSize);
                 card.classList.add('is-loaded');
                 if (shouldReduceMotion()) renderIndividualPartPreviews();
             }, undefined, (error) => {
@@ -1974,8 +2056,8 @@
             const grid = document.querySelector('.individual-parts-grid');
             if (!createIndividualPartRenderer(grid)) return;
 
-            document.querySelectorAll('.part-preview-card').forEach((card) => {
-                const preview = initIndividualPartPreview(card);
+            document.querySelectorAll('.part-preview-card').forEach((card, index) => {
+                const preview = initIndividualPartPreview(card, index);
                 if (preview) individualPartPreviews.push(preview);
             });
 
