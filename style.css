@@ -32,6 +32,7 @@
     --font-errorBanner: 14px;
     --timeline-circle-size: 46px;
     --timeline-line-height: 3px;
+    --site-scale: 0.9;
 }
 
 body {
@@ -45,6 +46,10 @@ body {
     flex-direction: column;
     min-height: 100vh;
     overflow-x: hidden;
+}
+
+body.public-site {
+    zoom: var(--site-scale);
 }
 
 h1 {

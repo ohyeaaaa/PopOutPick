@@ -27,6 +27,7 @@
             --text-secondary: #9e9188;
 
             --hover-fire-bg: rgba(226, 88, 34, 0.08);
+            --site-scale: 0.9;
         }
 
         /* --- Global Resets & Typography --- */
@@ -56,6 +57,10 @@
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
             position: relative;
+        }
+
+        body.public-site {
+            zoom: var(--site-scale);
         }
 
         body::before {
@@ -1247,7 +1252,7 @@
         }
     </style>
 </head>
-<body>
+<body class="public-site">
 
     <header class="site-header">
         <a href="index.html" class="header-logo" data-home-text="site_brand_name">PopOutPick</a>
