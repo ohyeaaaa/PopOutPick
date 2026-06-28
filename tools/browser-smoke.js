@@ -519,7 +519,8 @@ async function main() {
                 { name: 'final review desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupFinalReview },
                 { name: 'checkout desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupCheckout },
                 { name: 'checkout mobile', path: '/configurator.html', width: 390, height: 844, setup: setupCheckout },
-                { name: 'payment order desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupPayment }
+                { name: 'payment order desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupPayment },
+                { name: 'payment order mobile', path: '/configurator.html', width: 390, height: 844, setup: setupPayment }
             ];
 
             const results = [];
