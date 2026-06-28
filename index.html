@@ -744,14 +744,27 @@
         }
 
         .individual-parts-grid {
+            position: relative;
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 24px;
             margin-top: 24px;
+            isolation: isolate;
+        }
+
+        .part-preview-shared-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+            pointer-events: none;
         }
 
         .part-preview-card {
             position: relative;
+            z-index: 1;
             min-height: 300px;
             border: 1px solid rgba(226, 88, 34, 0.26);
             border-radius: 16px;
@@ -1423,7 +1436,7 @@
         const glbLoaders = [];
         const glbColorPalette = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae];
         const glbCardColors = [0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5, 0x90a4ae, 0xe53935, 0x1a1a1a, 0xffffff, 0x1e88e5];
-        const glbAssetVersion = '20260616-hero-glb-fix';
+        const glbAssetVersion = '20260628-shared-preview-renderer';
         const glbCardView = [
             { zoom: 1.35, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
             { zoom: 1.25, targetSize: 5.2, rotation: [1.35, 0.1, 0] },
@@ -1875,20 +1888,44 @@
            3. INDIVIDUAL CUSTOMIZE PART PREVIEWS
            ========================================== */
         const individualPartPreviews = [];
+        let individualPartPreviewGrid = null;
+        let individualPartPreviewRenderer = null;
+        let individualPartPreviewFrameId = null;
+
+        function createIndividualPartRenderer(grid) {
+            if (individualPartPreviewRenderer) return individualPartPreviewRenderer;
+            if (!grid || !window.THREE) return null;
+
+            const renderer = new THREE.WebGLRenderer({
+                antialias: !isMobileViewport(),
+                alpha: true,
+                preserveDrawingBuffer: false
+            });
+            renderer.setClearColor(0x000000, 0);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
+            renderer.domElement.className = 'part-preview-shared-canvas';
+            grid.insertBefore(renderer.domElement, grid.firstChild);
+            individualPartPreviewGrid = grid;
+            individualPartPreviewRenderer = renderer;
+            return renderer;
+        }
+
+        function resizeIndividualPartRenderer() {
+            if (!individualPartPreviewGrid || !individualPartPreviewRenderer) return;
+            const width = Math.max(1, individualPartPreviewGrid.clientWidth || 1);
+            const height = Math.max(1, individualPartPreviewGrid.clientHeight || 1);
+            individualPartPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
+            individualPartPreviewRenderer.setSize(width, height, false);
+        }
 
         function initIndividualPartPreview(card) {
-            const viewer = card.querySelector('.part-preview-viewer');
             const file = card.dataset.glb;
-            if (!viewer || !file || !window.THREE) return null;
+            if (!card || !file || !window.THREE) return null;
 
-            const width = viewer.clientWidth || card.clientWidth || 320;
-            const height = viewer.clientHeight || card.clientHeight || 240;
+            const width = card.clientWidth || 320;
+            const height = card.clientHeight || 240;
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true });
-            renderer.setSize(width, height);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
-            viewer.appendChild(renderer.domElement);
 
             scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
             const light = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -1900,7 +1937,7 @@
 
             const color = 0xffffff;
             const loader = new THREE.GLTFLoader();
-            loader.load(file, (gltf) => {
+            loader.load(`${file}?v=${glbAssetVersion}`, (gltf) => {
                 const model = gltf.scene;
                 model.traverse((child) => {
                     if (!child.isMesh) return;
@@ -1912,18 +1949,20 @@
                 });
                 group.add(model);
                 fitModelToView(model, camera);
-                renderer.render(scene, camera);
+                card.classList.add('is-loaded');
+                if (shouldReduceMotion()) renderIndividualPartPreviews();
+            }, undefined, (error) => {
+                console.error(`Failed to load ${file}`, error);
             });
 
             function resize() {
-                const nextWidth = viewer.clientWidth || card.clientWidth || width;
-                const nextHeight = viewer.clientHeight || card.clientHeight || height;
-                renderer.setSize(nextWidth, nextHeight);
+                const nextWidth = card.clientWidth || width;
+                const nextHeight = card.clientHeight || height;
                 camera.aspect = nextWidth / nextHeight;
                 camera.updateProjectionMatrix();
             }
 
-            return { scene, camera, renderer, group, resize };
+            return { card, scene, camera, group, resize };
         }
 
         let individualPartPreviewsStarted = false;
@@ -1931,6 +1970,9 @@
         function startIndividualPartPreviews() {
             if (individualPartPreviewsStarted) return;
             individualPartPreviewsStarted = true;
+
+            const grid = document.querySelector('.individual-parts-grid');
+            if (!createIndividualPartRenderer(grid)) return;
 
             document.querySelectorAll('.part-preview-card').forEach((card) => {
                 const preview = initIndividualPartPreview(card);
@@ -1941,11 +1983,32 @@
         }
 
         function renderIndividualPartPreviews() {
+            if (!individualPartPreviewGrid || !individualPartPreviewRenderer) return;
+            resizeIndividualPartRenderer();
+
+            const gridRect = individualPartPreviewGrid.getBoundingClientRect();
+            individualPartPreviewRenderer.setScissorTest(false);
+            individualPartPreviewRenderer.clear(true, true, true);
+            individualPartPreviewRenderer.setScissorTest(true);
+
             individualPartPreviews.forEach((preview) => {
+                const rect = preview.card.getBoundingClientRect();
+                if (rect.width <= 1 || rect.height <= 1) return;
+                if (rect.bottom < gridRect.top || rect.top > gridRect.bottom) return;
+
+                const x = Math.max(0, Math.floor(rect.left - gridRect.left));
+                const y = Math.max(0, Math.floor(gridRect.bottom - rect.bottom));
+                const width = Math.max(1, Math.floor(rect.width));
+                const height = Math.max(1, Math.floor(rect.height));
                 preview.group.rotation.y += 0.008;
-                preview.renderer.render(preview.scene, preview.camera);
+                preview.resize();
+                individualPartPreviewRenderer.setViewport(x, y, width, height);
+                individualPartPreviewRenderer.setScissor(x, y, width, height);
+                individualPartPreviewRenderer.render(preview.scene, preview.camera);
             });
-            if (!shouldReduceMotion()) requestAnimationFrame(renderIndividualPartPreviews);
+
+            individualPartPreviewRenderer.setScissorTest(false);
+            if (!shouldReduceMotion()) individualPartPreviewFrameId = requestAnimationFrame(renderIndividualPartPreviews);
         }
 
         const spinningAnimationCard = document.getElementById('spinning-animation-card');
@@ -1960,7 +2023,11 @@
             startIndividualPartPreviews();
         }
 
-        window.addEventListener('resize', () => individualPartPreviews.forEach(preview => preview.resize()));
+        window.addEventListener('resize', () => {
+            resizeIndividualPartRenderer();
+            individualPartPreviews.forEach(preview => preview.resize());
+            if (shouldReduceMotion() && individualPartPreviewFrameId === null) renderIndividualPartPreviews();
+        });
 
         /* ==========================================
            4. STEP 5: SCROLL REVEAL OBSERVER

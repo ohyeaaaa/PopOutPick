@@ -309,6 +309,22 @@ async function runPage(client, scenario) {
             const text = selector => document.querySelector(selector)?.innerText || '';
             const menuButton = document.querySelector('.menu-btn, .icon-btn[aria-label="Menu"]');
             const telegramButton = document.querySelector('.icon-btn[aria-label^="Telegram"], .icon-btn[aria-label^="Add Telegram"]');
+            const heroGlbCards = Array.from(document.querySelectorAll('.glb-dropzone'));
+            const heroGlbItems = heroGlbCards.map(card => {
+                const canvas = card.querySelector('canvas');
+                const rect = canvas ? canvas.getBoundingClientRect() : null;
+                const context = canvas
+                    ? canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+                    : null;
+                return {
+                    label: card.getAttribute('aria-label') || card.innerText.trim(),
+                    hasCanvas: Boolean(canvas),
+                    loaded: card.classList.contains('model-is-loaded'),
+                    contextLost: Boolean(context && typeof context.isContextLost === 'function' && context.isContextLost()),
+                    width: rect ? rect.width : 0,
+                    height: rect ? rect.height : 0
+                };
+            });
             let mobileMenuLinkCount = 0;
             if (menuButton && window.innerWidth < 700) {
                 menuButton.click();
@@ -324,6 +340,16 @@ async function runPage(client, scenario) {
                 overflow: Math.max(0, maxRight - doc.clientWidth),
                 overflowElements,
                 hero: Boolean(document.querySelector('.glb-grid-wrapper') && document.querySelector('[data-home-text="hero_card_title"]')),
+                heroGlb: {
+                    cards: heroGlbItems.length,
+                    canvases: heroGlbItems.filter(item => item.hasCanvas).length,
+                    loaded: heroGlbItems.filter(item => item.loaded).length,
+                    contextLost: heroGlbItems.filter(item => item.contextLost).length,
+                    blankLabels: heroGlbItems
+                        .filter(item => !item.hasCanvas || !item.loaded || item.contextLost || item.width < 1 || item.height < 1)
+                        .map(item => item.label)
+                },
+                partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
                 proof: Boolean(document.querySelector('.product-proof')),
                 checkout: Boolean(document.querySelector('#checkout-box')),
                 trustCards: document.querySelectorAll('.checkout-trust-card > div').length,
@@ -376,6 +402,15 @@ function assertResult(result) {
     }
     if (result.path === '/' && (!result.metrics.hero || !result.metrics.proof)) {
         problems.push('homepage hero/product-proof sections missing');
+    }
+    if (result.path === '/') {
+        const heroGlb = result.metrics.heroGlb || {};
+        if (heroGlb.cards !== 9 || heroGlb.canvases !== 9 || heroGlb.loaded !== 9 || heroGlb.contextLost > 0) {
+            problems.push(`hero GLB modules did not all render: ${JSON.stringify(heroGlb)}`);
+        }
+        if (result.name.includes('secondary previews') && result.metrics.partPreviewCanvases !== 1) {
+            problems.push(`secondary part previews should use one shared canvas, found ${result.metrics.partPreviewCanvases}`);
+        }
     }
     if (result.name.includes('checkout') && result.metrics.trustCards < 3) {
         problems.push('checkout trust cards did not render');
@@ -513,8 +548,17 @@ async function main() {
                 await new Promise(resolve => setTimeout(resolve, 3000));
             })()`;
 
+            const setupHomeSecondaryPreviews = `(async () => {
+                const target = document.getElementById('spinning-animation-card');
+                if (target) target.scrollIntoView({ block: 'center' });
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                window.scrollTo(0, 0);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            })()`;
+
             const scenarios = [
                 { name: 'home desktop', path: '/', width: 1366, height: 900 },
+                { name: 'home desktop after secondary previews', path: '/', width: 1366, height: 900, setup: setupHomeSecondaryPreviews },
                 { name: 'home mobile', path: '/', width: 390, height: 844 },
                 { name: 'final review desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupFinalReview },
                 { name: 'checkout desktop', path: '/configurator.html', width: 1366, height: 900, setup: setupCheckout },
