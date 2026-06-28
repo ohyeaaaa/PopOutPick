@@ -83,11 +83,12 @@
         /* --- Technical / Monospace Typography --- */
         .mono-accent {
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 11px;
-            letter-spacing: 1.5px;
+            font-size: clamp(15px, 1.2vw, 19px);
+            font-weight: 900;
+            letter-spacing: 1px;
             color: var(--brand-fire);
             text-transform: uppercase;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             display: block;
         }
 
@@ -522,13 +523,13 @@
         .card:hover .hud-corners-alt::after { transform: translate(-4px, 4px); border-color: #ff9a00; opacity: 1;}
 
         .render-preview-video {
-            width: min(390px, 64%);
-            height: min(620px, calc(100% - 56px));
+            width: min(470px, 76%);
+            height: min(700px, calc(100% - 34px));
             min-height: 0;
             object-fit: contain;
             border-radius: 8px;
             display: block;
-            transform: rotate(-90deg) scale(1);
+            transform: rotate(-90deg) scale(1.06);
             transform-origin: center;
             box-shadow: 0 0 30px rgba(226, 88, 34, 0.22);
         }
@@ -995,6 +996,11 @@
 
             .card-header {
                 margin-bottom: 12px;
+            }
+
+            .mono-accent {
+                font-size: clamp(13px, 3.5vw, 16px);
+                margin-bottom: 9px;
             }
 
             .card-header h1,
