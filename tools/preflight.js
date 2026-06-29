@@ -18,7 +18,7 @@ const serverStartupAttempts = Number.parseInt(process.env.PREFLIGHT_SERVER_ATTEM
 const preflightHeaders = trustProxy && requireHttps ? { 'X-Forwarded-Proto': 'https' } : {};
 
 const requiredFiles = [
-    'index.html',
+    'Home.html',
     'configurator.html',
     'admin/index.html',
     'admin/admin.js',

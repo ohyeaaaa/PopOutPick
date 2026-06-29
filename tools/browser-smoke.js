@@ -356,9 +356,26 @@ async function runPage(client, scenario) {
             const partPreviewCards = Array.from(document.querySelectorAll('.part-preview-card'));
             const firstPartPreviewCard = partPreviewCards[0] || null;
             const firstPartPreviewRect = firstPartPreviewCard ? firstPartPreviewCard.getBoundingClientRect() : null;
-            const sharedPartPreviewCanvas = document.querySelector('.individual-parts-grid > canvas');
+            const partPreviewCanvases = Array.from(document.querySelectorAll('.individual-parts-grid .part-preview-card canvas'));
             const scrollGlbCanvas = document.querySelector('#scroll-glb-viewer canvas');
-            const partPreviewPixels = sampleCanvas(sharedPartPreviewCanvas);
+            const partPreviewItems = partPreviewCards.map(card => {
+                const canvas = card.querySelector('canvas');
+                const rect = canvas ? canvas.getBoundingClientRect() : null;
+                return {
+                    label: card.querySelector('span')?.innerText || '',
+                    loaded: card.classList.contains('is-loaded'),
+                    hasCanvas: Boolean(canvas),
+                    width: rect ? rect.width : 0,
+                    height: rect ? rect.height : 0,
+                    pixels: sampleCanvas(canvas)
+                };
+            });
+            const partPreviewPixels = partPreviewItems.reduce((total, item) => ({
+                readable: total.readable || item.pixels.readable,
+                nonTransparent: total.nonTransparent + (item.pixels.nonTransparent || 0),
+                varied: total.varied + (item.pixels.varied || 0),
+                error: total.error || item.pixels.error || ''
+            }), { readable: false, nonTransparent: 0, varied: 0, error: '' });
             const scrollGlbPixels = sampleCanvas(scrollGlbCanvas);
             let mobileMenuLinkCount = 0;
             if (menuButton && window.innerWidth < 700) {
@@ -390,12 +407,15 @@ async function runPage(client, scenario) {
                     canvas: Boolean(scrollGlbCanvas),
                     pixels: scrollGlbPixels
                 },
-                partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                partPreviewCanvases: partPreviewCanvases.length,
                 partPreview: {
                     loadedCards: partPreviewCards.filter(card => card.classList.contains('is-loaded')).length,
                     bodyLoaded: Boolean(firstPartPreviewCard?.classList.contains('is-loaded')),
                     bodyHeight: firstPartPreviewRect ? firstPartPreviewRect.height : 0,
-                    sharedCanvasZIndex: sharedPartPreviewCanvas ? getComputedStyle(sharedPartPreviewCanvas).zIndex : '',
+                    items: partPreviewItems,
+                    blankLabels: partPreviewItems
+                        .filter(item => !item.loaded || !item.hasCanvas || item.width < 1 || item.height < 1 || item.pixels.nonTransparent <= 8)
+                        .map(item => item.label),
                     pixels: partPreviewPixels,
                     snapshot: window.__smokePartPreviewState || null
                 },
@@ -459,8 +479,19 @@ function assertResult(result) {
         if (heroGlb.cards !== 9 || heroMediaCount !== 9 || heroGlb.loaded !== 9 || heroGlb.contextLost > 0 || heroGlb.blankLabels?.length) {
             problems.push(`hero GLB modules did not all render: ${JSON.stringify(heroGlb)}`);
         }
-        if (result.name.includes('secondary previews') && result.metrics.partPreviewCanvases !== 1) {
-            problems.push(`secondary part previews should use one shared canvas, found ${result.metrics.partPreviewCanvases}`);
+        if (result.name.includes('secondary previews')) {
+            const partPreview = result.metrics.partPreview || {};
+            const snapshot = partPreview.snapshot || {};
+            const canvasCount = snapshot.partPreviewCanvases ?? result.metrics.partPreviewCanvases;
+            const loadedCards = snapshot.loadedCards ?? partPreview.loadedCards;
+            const blankLabels = snapshot.blankLabels ?? partPreview.blankLabels ?? [];
+            const pixels = snapshot.partPreviewPixels ?? partPreview.pixels ?? {};
+            if (canvasCount !== 9) {
+                problems.push(`secondary part previews should use one canvas per card, found ${canvasCount}`);
+            }
+            if (loadedCards !== 9 || blankLabels.length || (pixels.nonTransparent || 0) <= 8 || (pixels.varied || 0) <= 4) {
+                problems.push(`secondary part previews did not all render visibly: ${JSON.stringify(snapshot.partPreviewCanvases ? snapshot : partPreview)}`);
+            }
         }
         if (result.name.includes('mobile after secondary previews')) {
             const partPreview = result.metrics.partPreview || {};
@@ -468,14 +499,14 @@ function assertResult(result) {
             if (!snapshot.bodyLoaded || snapshot.bodyHeight < 160) {
                 problems.push(`mobile 3D_VIEWPORT body preview did not render visibly: ${JSON.stringify(partPreview)}`);
             }
-            if (snapshot.partPreviewCanvases !== 1) {
-                problems.push(`mobile 3D_VIEWPORT should use one shared canvas, found ${snapshot.partPreviewCanvases}`);
+            if (snapshot.partPreviewCanvases !== 9) {
+                problems.push(`mobile 3D_VIEWPORT should use one canvas per card, found ${snapshot.partPreviewCanvases}`);
             }
             if ((snapshot.scrollGlbPixels?.nonTransparent || 0) <= 8 || (snapshot.scrollGlbPixels?.varied || 0) <= 4) {
                 problems.push(`mobile KINEMATIC_TEST canvas looked blank: ${JSON.stringify(snapshot.scrollGlbPixels)}`);
             }
-            if ((snapshot.partPreviewPixels?.nonTransparent || 0) <= 8 || (snapshot.partPreviewPixels?.varied || 0) <= 4) {
-                problems.push(`mobile 3D_VIEWPORT canvas looked blank: ${JSON.stringify(snapshot.partPreviewPixels)}`);
+            if ((snapshot.partPreviewPixels?.nonTransparent || 0) <= 8 || (snapshot.partPreviewPixels?.varied || 0) <= 4 || snapshot.blankLabels?.length) {
+                problems.push(`mobile 3D_VIEWPORT canvases looked blank: ${JSON.stringify(snapshot)}`);
             }
         }
     }
@@ -616,9 +647,57 @@ async function main() {
             })()`;
 
             const setupHomeSecondaryPreviews = `(async () => {
+                function sampleCanvas(canvas) {
+                    if (!canvas || canvas.width < 1 || canvas.height < 1) return { readable: false, nonTransparent: 0, varied: 0, error: 'missing-canvas' };
+                    try {
+                        const sample = document.createElement('canvas');
+                        sample.width = 18;
+                        sample.height = 18;
+                        const context = sample.getContext('2d', { willReadFrequently: true });
+                        context.drawImage(canvas, 0, 0, sample.width, sample.height);
+                        const data = context.getImageData(0, 0, sample.width, sample.height).data;
+                        let nonTransparent = 0;
+                        let varied = 0;
+                        for (let index = 0; index < data.length; index += 4) {
+                            const alpha = data[index + 3];
+                            if (alpha > 8) nonTransparent += 1;
+                            if (alpha > 8 && (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245)) varied += 1;
+                        }
+                        return { readable: true, nonTransparent, varied, error: '' };
+                    } catch (error) {
+                        return { readable: false, nonTransparent: 0, varied: 0, error: error.message || 'sample-failed' };
+                    }
+                }
                 const target = document.getElementById('spinning-animation-card');
                 if (target) target.scrollIntoView({ block: 'center' });
                 await new Promise(resolve => setTimeout(resolve, 3000));
+                const bodyCard = document.querySelector('.part-preview-card');
+                const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
+                const partPreviewItems = Array.from(document.querySelectorAll('.part-preview-card')).map(card => {
+                    const canvas = card.querySelector('canvas');
+                    return {
+                        label: card.querySelector('span')?.innerText || '',
+                        loaded: card.classList.contains('is-loaded'),
+                        hasCanvas: Boolean(canvas),
+                        pixels: sampleCanvas(canvas)
+                    };
+                });
+                const partPreviewPixels = partPreviewItems.reduce((total, item) => ({
+                    readable: total.readable || item.pixels.readable,
+                    nonTransparent: total.nonTransparent + (item.pixels.nonTransparent || 0),
+                    varied: total.varied + (item.pixels.varied || 0),
+                    error: total.error || item.pixels.error || ''
+                }), { readable: false, nonTransparent: 0, varied: 0, error: '' });
+                window.__smokePartPreviewState = {
+                    bodyLoaded: Boolean(bodyCard?.classList.contains('is-loaded')),
+                    bodyHeight: bodyRect ? bodyRect.height : 0,
+                    loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
+                    partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                    blankLabels: partPreviewItems
+                        .filter(item => !item.loaded || !item.hasCanvas || item.pixels.nonTransparent <= 8)
+                        .map(item => item.label),
+                    partPreviewPixels
+                };
                 window.scrollTo(0, 0);
                 await new Promise(resolve => setTimeout(resolve, 1500));
             })()`;
@@ -655,12 +734,29 @@ async function main() {
                 await new Promise(resolve => setTimeout(resolve, 3500));
                 const bodyCard = document.querySelector('.part-preview-card');
                 const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
-                const partPreviewPixels = sampleCanvas(document.querySelector('.individual-parts-grid > canvas'));
+                const partPreviewItems = Array.from(document.querySelectorAll('.part-preview-card')).map(card => {
+                    const canvas = card.querySelector('canvas');
+                    return {
+                        label: card.querySelector('span')?.innerText || '',
+                        loaded: card.classList.contains('is-loaded'),
+                        hasCanvas: Boolean(canvas),
+                        pixels: sampleCanvas(canvas)
+                    };
+                });
+                const partPreviewPixels = partPreviewItems.reduce((total, item) => ({
+                    readable: total.readable || item.pixels.readable,
+                    nonTransparent: total.nonTransparent + (item.pixels.nonTransparent || 0),
+                    varied: total.varied + (item.pixels.varied || 0),
+                    error: total.error || item.pixels.error || ''
+                }), { readable: false, nonTransparent: 0, varied: 0, error: '' });
                 window.__smokePartPreviewState = {
                     bodyLoaded: Boolean(bodyCard?.classList.contains('is-loaded')),
                     bodyHeight: bodyRect ? bodyRect.height : 0,
                     loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
                     partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                    blankLabels: partPreviewItems
+                        .filter(item => !item.loaded || !item.hasCanvas || item.pixels.nonTransparent <= 8)
+                        .map(item => item.label),
                     scrollGlbPixels,
                     partPreviewPixels
                 };

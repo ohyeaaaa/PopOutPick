@@ -3,7 +3,7 @@
     const contactConfig = config.contact || config.social || {};
     const telegramUrl = String(contactConfig.telegramUrl || contactConfig.telegram || '').trim();
     const searchItems = [
-        { label: 'Home', href: 'index.html', keywords: 'home brand intro' },
+        { label: 'Home', href: 'Home.html', keywords: 'home brand intro' },
         { label: 'Shop', href: 'configurator.html#shop', keywords: 'shop replacement parts products' },
         { label: 'Customize', href: 'configurator.html', keywords: 'customize configurator build colors' },
         { label: 'Cart', href: 'configurator.html#checkout-box', keywords: 'cart checkout order payment' }

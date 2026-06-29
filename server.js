@@ -60,7 +60,7 @@ const CHECKOUT_DESIGN_PART_KEYS = new Set(['slider', 'top', 'bottom']);
 const COMMERCE_FINGERPRINT = createCommerceFingerprint(COMMERCE_CONFIG);
 
 const PUBLIC_ROOT_FILES = new Set([
-    'index.html',
+    'Home.html',
     'configurator.html',
     'style.css',
     'script.js',
@@ -77,8 +77,9 @@ const ADMIN_FILES = new Set([
 ]);
 
 const ROUTES = new Map([
-    ['/', 'index.html'],
-    ['/index.html', 'index.html'],
+    ['/', 'Home.html'],
+    ['/Home.html', 'Home.html'],
+    ['/index.html', 'Home.html'],
     ['/configurator', 'configurator.html'],
     ['/configurator.html', 'configurator.html'],
     ['/checkout', 'configurator.html'],
@@ -2394,7 +2395,7 @@ function handlePersistentLogs(req, res, url) {
 
 function runPreflightChecks(req) {
     const requiredFiles = [
-        'index.html',
+        'Home.html',
         'configurator.html',
         'admin/index.html',
         'admin/admin.css',

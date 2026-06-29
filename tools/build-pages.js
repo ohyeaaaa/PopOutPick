@@ -7,7 +7,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 
 const rootFiles = [
-    'index.html',
+    'Home.html',
     'configurator.html',
     'style.css',
     'script.js',
@@ -160,6 +160,11 @@ fs.mkdirSync(DIST_DIR, { recursive: true });
 rootFiles.forEach(copyFile);
 assetDirs.forEach(dir => copyDir(dir));
 selectedFiles.forEach(copyFile);
+
+const homepagePath = path.join(DIST_DIR, 'Home.html');
+if (fs.existsSync(homepagePath)) {
+    fs.copyFileSync(homepagePath, path.join(DIST_DIR, 'index.html'));
+}
 
 fs.writeFileSync(path.join(DIST_DIR, '.nojekyll'), '');
 

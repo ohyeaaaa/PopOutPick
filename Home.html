@@ -765,20 +765,11 @@
             isolation: isolate;
         }
 
-        .part-preview-shared-canvas {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-            pointer-events: none;
-        }
-
         .part-preview-card {
             position: relative;
             z-index: auto;
             min-height: 300px;
+            padding-bottom: 42px;
             border: 1px solid rgba(226, 88, 34, 0.26);
             border-radius: 16px;
             background: rgba(0, 0, 0, 0.22);
@@ -788,7 +779,11 @@
 
         .part-preview-viewer {
             position: absolute;
-            inset: 0;
+            top: 0;
+            right: 0;
+            bottom: 42px;
+            left: 0;
+            z-index: 1;
             pointer-events: none;
         }
 
@@ -802,8 +797,12 @@
             position: absolute;
             left: 12px;
             right: 12px;
-            bottom: 10px;
+            bottom: 0;
             z-index: 2;
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: var(--text-primary);
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
             font-size: 13px;
@@ -1098,6 +1097,7 @@
 
             .part-preview-card {
                 min-height: clamp(126px, 34vw, 156px);
+                padding-bottom: 24px;
                 border-radius: 8px;
             }
 
@@ -1109,7 +1109,8 @@
             .part-preview-card span {
                 left: 4px;
                 right: 4px;
-                bottom: 5px;
+                bottom: 0;
+                min-height: 24px;
                 font-size: clamp(7px, 2vw, 9px);
                 line-height: 1.05;
                 letter-spacing: 0;
@@ -1208,6 +1209,7 @@
 
             .part-preview-card {
                 min-height: clamp(122px, 34vw, 150px);
+                padding-bottom: 24px;
             }
 
             .part-preview-card:first-of-type {
@@ -1255,10 +1257,10 @@
 <body class="public-site">
 
     <header class="site-header">
-        <a href="index.html" class="header-logo" data-home-text="site_brand_name">PopOutPick</a>
+        <a href="Home.html" class="header-logo" data-home-text="site_brand_name">PopOutPick</a>
 
         <nav class="header-nav">
-            <a href="index.html">Home</a>
+            <a href="Home.html">Home</a>
             <a href="configurator.html#shop">Shop</a>
             <a href="configurator.html">Customize</a>
             <a href="configurator.html#checkout-box">Cart</a>
@@ -1424,8 +1426,8 @@
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 isGridInView = entry.isIntersecting;
-                if (!isMobileViewport()) return;
                 if (entry.isIntersecting) startHeroGlbDropzones();
+                else stopHeroGlbDropzones();
             });
         }, { threshold: 0, rootMargin: isMobileViewport() ? '260px 0px' : '0px' });
 
@@ -1490,15 +1492,15 @@
             { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] }
         ];
         const partPreviewCardView = [
-            { zoom: 1.18, targetSize: 4.2, rotation: [0.95, 0.15, 0] },
-            { zoom: 1.28, targetSize: 3.5, rotation: [0.62, 0.35, 0.02] },
-            { zoom: 1.45, targetSize: 3.4, rotation: [0.4, 0.65, 0.04] },
-            { zoom: 1.32, targetSize: 3.4, rotation: [0.62, 0.28, -0.04] },
-            { zoom: 1.32, targetSize: 3.5, rotation: [0.62, 0.28, 0.04] },
-            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
-            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
-            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] },
-            { zoom: 1.15, targetSize: 4.9, rotation: [1.35, 0.1, 0] }
+            { zoom: 1.5, targetSize: 4.2, rotation: [0.18, 0.18, 0] },
+            { zoom: 1.62, targetSize: 3.5, rotation: [0.16, 0.22, 0] },
+            { zoom: 1.82, targetSize: 3.4, rotation: [0.14, 0.26, 0] },
+            { zoom: 1.66, targetSize: 3.4, rotation: [0.18, 0.18, 0] },
+            { zoom: 1.66, targetSize: 3.5, rotation: [0.18, 0.18, 0] },
+            { zoom: 1.48, targetSize: 4.9, rotation: [0.16, 0.2, 0] },
+            { zoom: 1.48, targetSize: 4.9, rotation: [0.16, 0.2, 0] },
+            { zoom: 1.48, targetSize: 4.9, rotation: [0.16, 0.2, 0] },
+            { zoom: 1.48, targetSize: 4.9, rotation: [0.16, 0.2, 0] }
         ];
         const mobileGlbPositions = [
             { x: -118, y: -142, z: -12, scale: 0.94, rot: -8 },
@@ -1744,7 +1746,7 @@
                         box.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
                     }
                 }
-                if (glbSlot && !glbSlot.isDisposed() && !shouldReduceMotion() && (isGridInView || !isMobileViewport())) {
+                if (glbSlot && !glbSlot.isDisposed() && !shouldReduceMotion() && isGridInView) {
                     glbSlot.group.rotation.y += 0.008;
                     glbSlot.group.scale.set(
                         1 + Math.sin(time * 0.0012 + index) * 0.035,
@@ -1766,8 +1768,6 @@
         }
 
         function stopHeroGlbDropzones() {
-            if (!isMobileViewport()) return;
-
             glbDropzones.forEach((box) => {
                 if (box.__heroAnimationFrameId) {
                     cancelAnimationFrame(box.__heroAnimationFrameId);
@@ -2039,45 +2039,37 @@
            3. INDIVIDUAL CUSTOMIZE PART PREVIEWS
            ========================================== */
         const individualPartPreviews = [];
-        let individualPartPreviewGrid = null;
-        let individualPartPreviewRenderer = null;
         let individualPartPreviewFrameId = null;
         let individualPartPreviewVisible = false;
+        const partPreviewSpinSpeed = 0.0018;
 
-        function createIndividualPartRenderer(grid) {
-            if (individualPartPreviewRenderer) return individualPartPreviewRenderer;
-            if (!grid || !window.THREE) return null;
+        function createPartPreviewRenderer(viewer) {
+            if (!viewer || !window.THREE) return null;
 
             const renderer = new THREE.WebGLRenderer({
                 antialias: !isMobileViewport(),
                 alpha: true,
-                preserveDrawingBuffer: isMobileViewport()
+                preserveDrawingBuffer: true
             });
             renderer.setClearColor(0x000000, 0);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
-            renderer.domElement.className = 'part-preview-shared-canvas';
-            grid.insertBefore(renderer.domElement, grid.firstChild);
-            individualPartPreviewGrid = grid;
-            individualPartPreviewRenderer = renderer;
+            viewer.appendChild(renderer.domElement);
             return renderer;
-        }
-
-        function resizeIndividualPartRenderer() {
-            if (!individualPartPreviewGrid || !individualPartPreviewRenderer) return;
-            const width = Math.max(1, individualPartPreviewGrid.clientWidth || 1);
-            const height = Math.max(1, individualPartPreviewGrid.clientHeight || 1);
-            individualPartPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
-            individualPartPreviewRenderer.setSize(width, height, false);
         }
 
         function initIndividualPartPreview(card, index) {
             const file = card.dataset.glb;
             if (!card || !file || !window.THREE) return null;
 
-            const width = card.clientWidth || 320;
-            const height = card.clientHeight || 240;
+            const viewer = card.querySelector('.part-preview-viewer');
+            const renderer = createPartPreviewRenderer(viewer);
+            if (!renderer) return null;
+
+            const width = viewer.clientWidth || card.clientWidth || 320;
+            const height = viewer.clientHeight || card.clientHeight || 240;
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            renderer.setSize(width, height, false);
 
             scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
             const light = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -2086,10 +2078,23 @@
 
             const group = new THREE.Group();
             scene.add(group);
+            let disposed = false;
 
             const color = 0xffffff;
             const loader = new THREE.GLTFLoader();
+            function disposeObject(object) {
+                object.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    const childMaterials = Array.isArray(child.material) ? child.material : [child.material];
+                    childMaterials.filter(Boolean).forEach((material) => material.dispose && material.dispose());
+                });
+            }
+
             loader.load(`${file}?v=${glbAssetVersion}`, (gltf) => {
+                if (disposed) {
+                    disposeObject(gltf.scene);
+                    return;
+                }
                 const model = gltf.scene;
                 model.traverse((child) => {
                     if (!child.isMesh) return;
@@ -2111,17 +2116,36 @@
                 card.classList.add('is-loaded');
                 renderIndividualPartPreviews();
             }, undefined, (error) => {
+                if (disposed) return;
                 console.error(`Failed to load ${file}`, error);
             });
 
             function resize() {
-                const nextWidth = card.clientWidth || width;
-                const nextHeight = card.clientHeight || height;
+                if (disposed) return;
+                const nextWidth = Math.max(1, viewer.clientWidth || card.clientWidth || width);
+                const nextHeight = Math.max(1, viewer.clientHeight || card.clientHeight || height);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
+                renderer.setSize(nextWidth, nextHeight, false);
                 camera.aspect = nextWidth / nextHeight;
                 camera.updateProjectionMatrix();
             }
 
-            return { card, scene, camera, group, resize };
+            function render() {
+                if (disposed) return;
+                renderer.render(scene, camera);
+            }
+
+            function dispose() {
+                if (disposed) return;
+                disposed = true;
+                disposeObject(group);
+                renderer.dispose();
+                if (renderer.forceContextLoss) renderer.forceContextLoss();
+                renderer.domElement.remove();
+                card.classList.remove('is-loaded');
+            }
+
+            return { card, viewer, renderer, scene, camera, group, resize, render, dispose, isDisposed: () => disposed };
         }
 
         let individualPartPreviewsStarted = false;
@@ -2131,7 +2155,7 @@
             individualPartPreviewsStarted = true;
 
             const grid = document.querySelector('.individual-parts-grid');
-            if (!createIndividualPartRenderer(grid)) return;
+            if (!grid || !window.THREE) return;
 
             document.querySelectorAll('.part-preview-card').forEach((card, index) => {
                 const preview = initIndividualPartPreview(card, index);
@@ -2141,34 +2165,30 @@
             renderIndividualPartPreviews();
         }
 
+        function destroyIndividualPartPreviews() {
+            stopIndividualPartPreviewLoop();
+            while (individualPartPreviews.length) {
+                const preview = individualPartPreviews.pop();
+                if (preview && !preview.isDisposed()) preview.dispose();
+            }
+            individualPartPreviewsStarted = false;
+        }
+
         function renderIndividualPartPreviews() {
             individualPartPreviewFrameId = null;
             if (!individualPartPreviewVisible && !shouldReduceMotion()) return;
-            if (!individualPartPreviewGrid || !individualPartPreviewRenderer) return;
-            resizeIndividualPartRenderer();
-
-            const gridRect = individualPartPreviewGrid.getBoundingClientRect();
-            individualPartPreviewRenderer.setScissorTest(false);
-            individualPartPreviewRenderer.clear(true, true, true);
-            individualPartPreviewRenderer.setScissorTest(true);
 
             individualPartPreviews.forEach((preview) => {
-                const rect = preview.card.getBoundingClientRect();
+                if (preview.isDisposed()) return;
+                const rect = preview.viewer.getBoundingClientRect();
                 if (rect.width <= 1 || rect.height <= 1) return;
-                if (rect.bottom < gridRect.top || rect.top > gridRect.bottom) return;
+                if (rect.bottom < 0 || rect.top > window.innerHeight) return;
 
-                const x = Math.max(0, Math.floor(rect.left - gridRect.left));
-                const y = Math.max(0, Math.floor(gridRect.bottom - rect.bottom));
-                const width = Math.max(1, Math.floor(rect.width));
-                const height = Math.max(1, Math.floor(rect.height));
-                preview.group.rotation.y += 0.008;
+                preview.group.rotation.y += partPreviewSpinSpeed;
                 preview.resize();
-                individualPartPreviewRenderer.setViewport(x, y, width, height);
-                individualPartPreviewRenderer.setScissor(x, y, width, height);
-                individualPartPreviewRenderer.render(preview.scene, preview.camera);
+                preview.render();
             });
 
-            individualPartPreviewRenderer.setScissorTest(false);
             if (!shouldReduceMotion()) individualPartPreviewFrameId = requestAnimationFrame(renderIndividualPartPreviews);
         }
 
@@ -2193,7 +2213,7 @@
             const partPreviewObserver = new IntersectionObserver((entries) => {
                 individualPartPreviewVisible = entries.some(entry => entry.isIntersecting);
                 if (!individualPartPreviewVisible) {
-                    stopIndividualPartPreviewLoop();
+                    destroyIndividualPartPreviews();
                     return;
                 }
                 startIndividualPartPreviews();
@@ -2207,7 +2227,6 @@
         }
 
         window.addEventListener('resize', () => {
-            resizeIndividualPartRenderer();
             individualPartPreviews.forEach(preview => preview.resize());
             if (shouldReduceMotion() && individualPartPreviewFrameId === null) renderIndividualPartPreviews();
         });
