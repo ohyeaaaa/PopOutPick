@@ -482,12 +482,15 @@ function assertResult(result) {
         if (result.name.includes('secondary previews')) {
             const partPreview = result.metrics.partPreview || {};
             const snapshot = partPreview.snapshot || {};
+            const isMobileSecondaryPreview = result.viewport.startsWith('390x');
             const canvasCount = snapshot.partPreviewCanvases ?? result.metrics.partPreviewCanvases;
+            const snapshotCount = snapshot.partPreviewSnapshots ?? 0;
+            const mediaCount = isMobileSecondaryPreview ? canvasCount + snapshotCount : canvasCount;
             const loadedCards = snapshot.loadedCards ?? partPreview.loadedCards;
             const blankLabels = snapshot.blankLabels ?? partPreview.blankLabels ?? [];
             const pixels = snapshot.partPreviewPixels ?? partPreview.pixels ?? {};
-            if (canvasCount !== 9) {
-                problems.push(`secondary part previews should use one canvas per card, found ${canvasCount}`);
+            if (mediaCount !== 9) {
+                problems.push(`secondary part previews should render one media item per card, found ${mediaCount}`);
             }
             if (loadedCards !== 9 || blankLabels.length || (pixels.nonTransparent || 0) <= 8 || (pixels.varied || 0) <= 4) {
                 problems.push(`secondary part previews did not all render visibly: ${JSON.stringify(snapshot.partPreviewCanvases ? snapshot : partPreview)}`);
@@ -499,8 +502,9 @@ function assertResult(result) {
             if (!snapshot.bodyLoaded || snapshot.bodyHeight < 160) {
                 problems.push(`mobile 3D_VIEWPORT body preview did not render visibly: ${JSON.stringify(partPreview)}`);
             }
-            if (snapshot.partPreviewCanvases !== 9) {
-                problems.push(`mobile 3D_VIEWPORT should use one canvas per card, found ${snapshot.partPreviewCanvases}`);
+            const mobilePartMediaCount = (snapshot.partPreviewCanvases || 0) + (snapshot.partPreviewSnapshots || 0);
+            if (mobilePartMediaCount !== 9) {
+                problems.push(`mobile 3D_VIEWPORT should render one media item per card, found ${mobilePartMediaCount}`);
             }
             if ((snapshot.scrollGlbPixels?.nonTransparent || 0) <= 8 || (snapshot.scrollGlbPixels?.varied || 0) <= 4) {
                 problems.push(`mobile KINEMATIC_TEST canvas looked blank: ${JSON.stringify(snapshot.scrollGlbPixels)}`);
@@ -675,11 +679,14 @@ async function main() {
                 const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
                 const partPreviewItems = Array.from(document.querySelectorAll('.part-preview-card')).map(card => {
                     const canvas = card.querySelector('canvas');
+                    const snapshot = card.querySelector('.part-preview-snapshot');
+                    const media = canvas || snapshot;
                     return {
                         label: card.querySelector('span')?.innerText || '',
                         loaded: card.classList.contains('is-loaded'),
                         hasCanvas: Boolean(canvas),
-                        pixels: sampleCanvas(canvas)
+                        hasSnapshot: Boolean(snapshot),
+                        pixels: sampleCanvas(media)
                     };
                 });
                 const partPreviewPixels = partPreviewItems.reduce((total, item) => ({
@@ -693,8 +700,9 @@ async function main() {
                     bodyHeight: bodyRect ? bodyRect.height : 0,
                     loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
                     partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                    partPreviewSnapshots: document.querySelectorAll('.individual-parts-grid .part-preview-snapshot').length,
                     blankLabels: partPreviewItems
-                        .filter(item => !item.loaded || !item.hasCanvas || item.pixels.nonTransparent <= 8)
+                        .filter(item => !item.loaded || !(item.hasCanvas || item.hasSnapshot) || item.pixels.nonTransparent <= 8)
                         .map(item => item.label),
                     partPreviewPixels
                 };
@@ -736,11 +744,14 @@ async function main() {
                 const bodyRect = bodyCard ? bodyCard.getBoundingClientRect() : null;
                 const partPreviewItems = Array.from(document.querySelectorAll('.part-preview-card')).map(card => {
                     const canvas = card.querySelector('canvas');
+                    const snapshot = card.querySelector('.part-preview-snapshot');
+                    const media = canvas || snapshot;
                     return {
                         label: card.querySelector('span')?.innerText || '',
                         loaded: card.classList.contains('is-loaded'),
                         hasCanvas: Boolean(canvas),
-                        pixels: sampleCanvas(canvas)
+                        hasSnapshot: Boolean(snapshot),
+                        pixels: sampleCanvas(media)
                     };
                 });
                 const partPreviewPixels = partPreviewItems.reduce((total, item) => ({
@@ -754,8 +765,9 @@ async function main() {
                     bodyHeight: bodyRect ? bodyRect.height : 0,
                     loadedCards: document.querySelectorAll('.part-preview-card.is-loaded').length,
                     partPreviewCanvases: document.querySelectorAll('.individual-parts-grid canvas').length,
+                    partPreviewSnapshots: document.querySelectorAll('.individual-parts-grid .part-preview-snapshot').length,
                     blankLabels: partPreviewItems
-                        .filter(item => !item.loaded || !item.hasCanvas || item.pixels.nonTransparent <= 8)
+                        .filter(item => !item.loaded || !(item.hasCanvas || item.hasSnapshot) || item.pixels.nonTransparent <= 8)
                         .map(item => item.label),
                     scrollGlbPixels,
                     partPreviewPixels

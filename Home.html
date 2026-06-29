@@ -793,6 +793,14 @@
             display: block;
         }
 
+        .part-preview-snapshot {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            pointer-events: none;
+        }
+
         .part-preview-card span {
             position: absolute;
             left: 12px;
@@ -999,6 +1007,13 @@
                 font-size: 9px;
                 line-height: 1.1;
                 letter-spacing: 0.15px;
+            }
+
+            .glb-viewer {
+                top: 3px;
+                right: 3px;
+                bottom: 22px;
+                left: 3px;
             }
 
             .container {
@@ -1497,7 +1512,7 @@
             { zoom: 1.45, targetSize: 4.0, rotation: [1.35, 0, 0] }
         ];
         const partPreviewCardView = [
-            { zoom: 1.5, targetSize: 4.2, rotation: [0.18, 0.18, 0] },
+            { zoom: 1.9, targetSize: 3.7, rotation: [0.95, 0.15, 0] },
             { zoom: 1.62, targetSize: 3.5, rotation: [0.16, 0.22, 0] },
             { zoom: 1.82, targetSize: 3.4, rotation: [0.14, 0.26, 0] },
             { zoom: 1.66, targetSize: 3.4, rotation: [0.18, 0.18, 0] },
@@ -1508,15 +1523,15 @@
             { zoom: 1.48, targetSize: 4.9, rotation: [0.16, 0.2, 0] }
         ];
         const mobileGlbPositions = [
-            { x: -118, y: -142, z: -12, scale: 0.94, rot: -8 },
-            { x: 118, y: -142, z: -18, scale: 0.92, rot: 8 },
-            { x: -142, y: -22, z: -28, scale: 0.84, rot: 11 },
-            { x: 142, y: -22, z: -24, scale: 0.84, rot: -11 },
-            { x: -104, y: 122, z: -34, scale: 0.82, rot: -7 },
-            { x: 104, y: 122, z: -30, scale: 0.82, rot: 7 },
-            { x: 0, y: -188, z: -42, scale: 0.8, rot: 0 },
-            { x: -170, y: 70, z: -48, scale: 0.76, rot: -13 },
-            { x: 170, y: 70, z: -46, scale: 0.76, rot: 13 }
+            { x: -92, y: -142, z: -12, scale: 0.94, rot: -6 },
+            { x: 92, y: -142, z: -18, scale: 0.92, rot: 6 },
+            { x: -104, y: -22, z: -28, scale: 0.86, rot: 8 },
+            { x: 104, y: -22, z: -24, scale: 0.86, rot: -8 },
+            { x: -88, y: 122, z: -34, scale: 0.84, rot: -5 },
+            { x: 88, y: 122, z: -30, scale: 0.84, rot: 5 },
+            { x: 0, y: -184, z: -42, scale: 0.8, rot: 0 },
+            { x: -104, y: 66, z: -48, scale: 0.78, rot: -9 },
+            { x: 104, y: 66, z: -46, scale: 0.78, rot: 9 }
         ];
 
         function getVisibleGlbColor(color) {
@@ -1540,7 +1555,7 @@
             return colors;
         }
 
-        function fitModelToView(model, camera, zoom = 2.1, targetSize = 2.4) {
+        function fitModelToView(model, camera, zoom = 2.1, targetSize = 2.4, options = {}) {
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
@@ -1549,10 +1564,25 @@
 
             model.scale.setScalar(scale);
             model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-            camera.position.set(targetSize * 0.18, targetSize * 0.12, targetSize * zoom);
+
+            let cameraDistance = targetSize * zoom;
+            if (options.frameFit) {
+                const fittedBox = new THREE.Box3().setFromObject(model);
+                const fittedSize = fittedBox.getSize(new THREE.Vector3());
+                const verticalFov = THREE.MathUtils.degToRad(camera.fov || 35);
+                const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * (camera.aspect || 1));
+                const heightDistance = fittedSize.y / (2 * Math.tan(verticalFov / 2));
+                const widthDistance = fittedSize.x / (2 * Math.tan(horizontalFov / 2));
+                cameraDistance = (Math.max(heightDistance, widthDistance) + (fittedSize.z / 2)) * (options.margin || 1.28);
+            }
+
+            const cameraX = targetSize * (options.xOffset ?? 0.18);
+            const cameraY = targetSize * (options.yOffset ?? 0.12);
+            const lookAtY = options.lookAtY ?? 0;
+            camera.position.set(cameraX, cameraY, cameraDistance);
             camera.near = 0.01;
-            camera.far = 100;
-            camera.lookAt(0, 0, 0);
+            camera.far = Math.max(100, cameraDistance * 6);
+            camera.lookAt(0, lookAtY, 0);
             camera.updateProjectionMatrix();
         }
 
@@ -1644,7 +1674,9 @@
                 group.add(model);
                 const view = glbCardView[index] || { zoom: 1.65, targetSize: 3.2, rotation: [0.55, 0.25, 0] };
                 model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
-                fitModelToView(model, camera, view.zoom, view.targetSize);
+                fitModelToView(model, camera, view.zoom, view.targetSize, isMobileViewport()
+                    ? { frameFit: true, margin: index === 0 ? 1.55 : 1.32, xOffset: 0.02, yOffset: 0.08 }
+                    : {});
                 box.classList.add('is-loaded');
                 renderer.render(scene, camera);
                 snapshotMobileModel();
@@ -1728,13 +1760,13 @@
                 if (isGridInView) {
                     if (isMobileHero) {
                         const mobilePosition = mobileGlbPositions[index] || mobileGlbPositions[index % mobileGlbPositions.length];
-                        const orbitX = Math.sin(time * 0.00082 + offsetMoveX) * 22;
-                        const orbitY = Math.cos(time * 0.00074 + offsetMoveY) * 18;
-                        const driftX = orbitX + Math.sin(time * 0.00135 + offsetMoveZ) * 9;
-                        const driftY = orbitY + Math.cos(time * 0.00118 + offsetMoveX) * 7;
-                        const driftZ = Math.sin(time * 0.00068 + offsetMoveZ) * 34;
-                        const rot = mobilePosition.rot + Math.sin(time * 0.00084 + offsetRotZ) * 8;
-                        const scale = mobilePosition.scale + Math.sin(time * 0.0011 + index) * 0.035;
+                        const orbitX = Math.sin(time * 0.00062 + offsetMoveX) * 8;
+                        const orbitY = Math.cos(time * 0.00058 + offsetMoveY) * 7;
+                        const driftX = orbitX + Math.sin(time * 0.001 + offsetMoveZ) * 3;
+                        const driftY = orbitY + Math.cos(time * 0.0009 + offsetMoveX) * 3;
+                        const driftZ = Math.sin(time * 0.00052 + offsetMoveZ) * 16;
+                        const rot = mobilePosition.rot + Math.sin(time * 0.00064 + offsetRotZ) * 4;
+                        const scale = mobilePosition.scale + Math.sin(time * 0.0009 + index) * 0.018;
                         box.style.zIndex = String(Math.round(20 + mobilePosition.z + driftZ));
                         box.style.transform = `translate3d(calc(-50% + ${mobilePosition.x + driftX}px), calc(-50% + ${mobilePosition.y + driftY}px), ${mobilePosition.z + driftZ}px) scale(${scale}) rotateZ(${rot}deg)`;
                     } else if (box.matches(':hover') || box.matches(':focus-visible')) {
@@ -1778,6 +1810,10 @@
                     cancelAnimationFrame(box.__heroAnimationFrameId);
                     box.__heroAnimationFrameId = null;
                 }
+                if (box.__heroStartTimer) {
+                    clearTimeout(box.__heroStartTimer);
+                    box.__heroStartTimer = null;
+                }
 
                 if (box.__glbSlot) {
                     const loaderIndex = glbLoaders.indexOf(box.__glbSlot);
@@ -1791,21 +1827,20 @@
         }
 
         function startHeroGlbDropzones() {
-            const eagerCount = glbDropzones.length;
-            glbDropzones.slice(0, eagerCount).forEach(startGlbDropzone);
-
-            if (eagerCount >= glbDropzones.length) return;
-
             if (isMobileViewport()) {
-                glbDropzones.slice(eagerCount).forEach((box, offset) => {
-                    const index = eagerCount + offset;
-                    const loadOnIntent = () => startGlbDropzone(box, index);
-                    box.addEventListener('pointerenter', loadOnIntent, { once: true });
-                    box.addEventListener('focus', loadOnIntent, { once: true });
-                    box.addEventListener('click', loadOnIntent, { once: true });
+                glbDropzones.forEach((box, index) => {
+                    if (box.dataset.started === 'true') return;
+                    box.__heroStartTimer = setTimeout(() => {
+                        box.__heroStartTimer = null;
+                        if (isGridInView) startGlbDropzone(box, index);
+                    }, index * 120);
                 });
                 return;
             }
+
+            const eagerCount = glbDropzones.length;
+            glbDropzones.slice(0, eagerCount).forEach(startGlbDropzone);
+            if (eagerCount >= glbDropzones.length) return;
 
             if (!('IntersectionObserver' in window)) {
                 glbDropzones.slice(eagerCount).forEach(startGlbDropzone);
@@ -1948,7 +1983,7 @@
             const width = scrollGlbViewer.clientWidth || 900;
             const height = scrollGlbViewer.clientHeight || 500;
             scrollScene = new THREE.Scene();
-            scrollCamera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            scrollCamera = new THREE.PerspectiveCamera(isMobileViewport() ? 42 : 35, width / height, 0.1, 1000);
             scrollRenderer = new THREE.WebGLRenderer({ antialias: !isMobileViewport(), alpha: true, preserveDrawingBuffer: isMobileViewport() });
             scrollRenderer.setSize(width, height);
             scrollRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1 : 1.5));
@@ -1967,7 +2002,13 @@
                 const model = gltf.scene;
                 setupScrollPartMaterials(model);
                 scrollModelGroup.add(model);
-                fitModelToView(model, scrollCamera);
+                fitModelToView(
+                    model,
+                    scrollCamera,
+                    isMobileViewport() ? 3.15 : 2.1,
+                    isMobileViewport() ? 2.65 : 2.4,
+                    isMobileViewport() ? { frameFit: true, margin: 1.45, xOffset: 0.02, yOffset: 0.08 } : {}
+                );
                 scrollCameraRadius = Math.hypot(scrollCamera.position.x, scrollCamera.position.z);
                 scrollCameraHeight = scrollCamera.position.y;
                 scrollModelGroup.rotation.set(Math.PI / 248, 0, 0);
@@ -2076,13 +2117,14 @@
             if (!card || !file || !window.THREE) return null;
 
             const viewer = card.querySelector('.part-preview-viewer');
+            viewer.querySelectorAll('.part-preview-snapshot').forEach(snapshot => snapshot.remove());
             const renderer = createPartPreviewRenderer(viewer);
             if (!renderer) return null;
 
             const width = viewer.clientWidth || card.clientWidth || 320;
             const height = viewer.clientHeight || card.clientHeight || 240;
             const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            const camera = new THREE.PerspectiveCamera(isMobileViewport() ? 38 : 35, width / height, 0.1, 1000);
             renderer.setSize(width, height, false);
 
             scene.add(new THREE.HemisphereLight(0xffffff, 0x2d160d, 1.35));
@@ -2125,9 +2167,18 @@
                 });
                 group.add(model);
                 const view = partPreviewCardView[index] || { zoom: 1.45, targetSize: 3.4, rotation: [0.62, 0.28, 0] };
+                const mobileBodyView = index === 0 && isMobileViewport()
+                    ? { zoom: 2.35, targetSize: 3.2, rotation: [0.95, 0.15, 0] }
+                    : null;
+                const fittedView = mobileBodyView || view;
                 model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
-                fitModelToView(model, camera, view.zoom, view.targetSize);
+                if (mobileBodyView) model.rotation.set(fittedView.rotation[0], fittedView.rotation[1], fittedView.rotation[2]);
+                fitModelToView(model, camera, fittedView.zoom, fittedView.targetSize, isMobileViewport()
+                    ? { frameFit: true, margin: index === 0 ? 1.62 : 1.34, xOffset: 0.02, yOffset: 0.08 }
+                    : {});
                 card.classList.add('is-loaded');
+                render();
+                snapshotMobilePartPreview();
                 renderIndividualPartPreviews();
             }, undefined, (error) => {
                 if (disposed) return;
@@ -2147,6 +2198,25 @@
             function render() {
                 if (disposed) return;
                 renderer.render(scene, camera);
+            }
+
+            function snapshotMobilePartPreview() {
+                if (!isMobileViewport() || disposed) return;
+                try {
+                    const snapshot = new Image();
+                    snapshot.className = 'part-preview-snapshot';
+                    snapshot.alt = '';
+                    snapshot.decoding = 'async';
+                    snapshot.src = renderer.domElement.toDataURL('image/png');
+                    viewer.appendChild(snapshot);
+                    disposeObject(group);
+                    renderer.dispose();
+                    if (renderer.forceContextLoss) renderer.forceContextLoss();
+                    renderer.domElement.remove();
+                    disposed = true;
+                } catch (error) {
+                    console.warn(`Could not snapshot ${file}`, error);
+                }
             }
 
             function dispose() {
