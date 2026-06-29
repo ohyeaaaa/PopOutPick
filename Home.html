@@ -238,6 +238,36 @@
             }
         }
 
+        @keyframes mobileModelDrift {
+            0% {
+                transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(-14deg) rotateZ(-1deg) scale(0.98);
+            }
+            35% {
+                transform: translate3d(1px, -3px, 0) rotateX(2deg) rotateY(10deg) rotateZ(1deg) scale(1.03);
+            }
+            70% {
+                transform: translate3d(-1px, 2px, 0) rotateX(-1deg) rotateY(18deg) rotateZ(-0.5deg) scale(1.01);
+            }
+            100% {
+                transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(-14deg) rotateZ(-1deg) scale(0.98);
+            }
+        }
+
+        @keyframes mobilePartDrift {
+            0% {
+                transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(-12deg) rotateZ(-1deg) scale(0.98);
+            }
+            40% {
+                transform: translate3d(0, -4px, 0) rotateX(2deg) rotateY(12deg) rotateZ(1deg) scale(1.025);
+            }
+            75% {
+                transform: translate3d(0, 2px, 0) rotateX(-1deg) rotateY(18deg) rotateZ(-0.5deg) scale(1.01);
+            }
+            100% {
+                transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(-12deg) rotateZ(-1deg) scale(0.98);
+            }
+        }
+
         /* --- TOP FULL-WIDTH FIRE BANNER --- */
         .glb-grid-wrapper {
             width: 100%;
@@ -370,6 +400,9 @@
             object-fit: contain;
             display: block;
             pointer-events: none;
+            transform-origin: center;
+            transform-style: preserve-3d;
+            will-change: transform;
         }
 
         .glb-icon {
@@ -799,6 +832,9 @@
             object-fit: contain;
             display: block;
             pointer-events: none;
+            transform-origin: center;
+            transform-style: preserve-3d;
+            will-change: transform;
         }
 
         .part-preview-card span {
@@ -1016,6 +1052,20 @@
                 left: 3px;
             }
 
+            .glb-snapshot {
+                animation: mobileModelDrift 4.8s ease-in-out infinite;
+            }
+
+            .glb-dropzone:nth-child(2n) .glb-snapshot {
+                animation-duration: 5.4s;
+                animation-delay: -1.2s;
+            }
+
+            .glb-dropzone:nth-child(3n) .glb-snapshot {
+                animation-duration: 6s;
+                animation-delay: -2s;
+            }
+
             .container {
                 padding: 0 12px 44px;
             }
@@ -1119,6 +1169,20 @@
 
             .part-preview-viewer {
                 bottom: 30px;
+            }
+
+            .part-preview-snapshot {
+                animation: mobilePartDrift 5.2s ease-in-out infinite;
+            }
+
+            .part-preview-card:nth-child(2n) .part-preview-snapshot {
+                animation-duration: 5.8s;
+                animation-delay: -1.4s;
+            }
+
+            .part-preview-card:nth-child(3n) .part-preview-snapshot {
+                animation-duration: 6.4s;
+                animation-delay: -2.2s;
             }
 
             .part-preview-card:first-of-type {
@@ -1760,13 +1824,13 @@
                 if (isGridInView) {
                     if (isMobileHero) {
                         const mobilePosition = mobileGlbPositions[index] || mobileGlbPositions[index % mobileGlbPositions.length];
-                        const orbitX = Math.sin(time * 0.00062 + offsetMoveX) * 8;
-                        const orbitY = Math.cos(time * 0.00058 + offsetMoveY) * 7;
-                        const driftX = orbitX + Math.sin(time * 0.001 + offsetMoveZ) * 3;
-                        const driftY = orbitY + Math.cos(time * 0.0009 + offsetMoveX) * 3;
-                        const driftZ = Math.sin(time * 0.00052 + offsetMoveZ) * 16;
-                        const rot = mobilePosition.rot + Math.sin(time * 0.00064 + offsetRotZ) * 4;
-                        const scale = mobilePosition.scale + Math.sin(time * 0.0009 + index) * 0.018;
+                        const orbitX = Math.sin(time * 0.00072 + offsetMoveX) * 14;
+                        const orbitY = Math.cos(time * 0.00066 + offsetMoveY) * 12;
+                        const driftX = orbitX + Math.sin(time * 0.00108 + offsetMoveZ) * 5;
+                        const driftY = orbitY + Math.cos(time * 0.00098 + offsetMoveX) * 5;
+                        const driftZ = Math.sin(time * 0.00058 + offsetMoveZ) * 24;
+                        const rot = mobilePosition.rot + Math.sin(time * 0.00072 + offsetRotZ) * 6;
+                        const scale = mobilePosition.scale + Math.sin(time * 0.00098 + index) * 0.026;
                         box.style.zIndex = String(Math.round(20 + mobilePosition.z + driftZ));
                         box.style.transform = `translate3d(calc(-50% + ${mobilePosition.x + driftX}px), calc(-50% + ${mobilePosition.y + driftY}px), ${mobilePosition.z + driftZ}px) scale(${scale}) rotateZ(${rot}deg)`;
                     } else if (box.matches(':hover') || box.matches(':focus-visible')) {
