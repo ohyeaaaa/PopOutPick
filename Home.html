@@ -1739,7 +1739,7 @@
                 const view = glbCardView[index] || { zoom: 1.65, targetSize: 3.2, rotation: [0.55, 0.25, 0] };
                 model.rotation.set(view.rotation[0], view.rotation[1], view.rotation[2]);
                 fitModelToView(model, camera, view.zoom, view.targetSize, isMobileViewport()
-                    ? { frameFit: true, margin: index === 0 ? 1.55 : 1.32, xOffset: 0.02, yOffset: 0.08 }
+                    ? { frameFit: true, margin: index === 0 ? 1.24 : 1.08, xOffset: 0.02, yOffset: 0.08 }
                     : {});
                 box.classList.add('is-loaded');
                 renderer.render(scene, camera);
