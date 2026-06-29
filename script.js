@@ -1366,7 +1366,12 @@ function getTurnstileConfig() {
     return getCommerceConfig().turnstile || {};
 }
 
+function isLocalCheckoutHost() {
+    return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
+
 function isTurnstileConfigured() {
+    if (isLocalCheckoutHost() && getTurnstileConfig().disableOnLocalhost !== false) return false;
     return Boolean(String(getTurnstileConfig().siteKey || '').trim());
 }
 

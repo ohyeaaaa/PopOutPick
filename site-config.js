@@ -106,7 +106,8 @@ window.POPOUTPICK_CONFIG = {
         quietOptionalSupabaseWarnings: true,
         turnstile: {
             siteKey: "0x4AAAAAADrbPSa9Igju9bPx",
-            action: "checkout"
+            action: "checkout",
+            disableOnLocalhost: true
         },
         checkoutApiUrl: "https://jllzhecqlxzegnrqhxnc.supabase.co/functions/v1/checkout-order",
         meetupShippingPrice: 0,
