@@ -81,6 +81,49 @@ textarea {
     color: #7c6f66;
 }
 
+.legal-page {
+    min-height: 100vh;
+}
+
+.legal-document {
+    width: min(920px, calc(100% - 32px));
+    margin: 42px auto 80px;
+    padding: 44px;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 18px;
+    background: var(--bg-surface-glass, rgba(28, 22, 19, 0.72));
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.legal-document h1 {
+    margin-bottom: 24px;
+}
+
+.legal-document h2 {
+    margin: 34px 0 12px;
+}
+
+.legal-document p {
+    color: var(--text-secondary, #b7aaa2);
+    margin: 0 0 16px;
+}
+
+.legal-document a {
+    color: var(--brand-green);
+    font-weight: 800;
+}
+
+.legal-kicker {
+    color: var(--brand-green) !important;
+    font-size: var(--font-labelCaps);
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px !important;
+    text-transform: uppercase;
+}
+
 /* --- SITE HEADER (shared Frontend header) --- */
 .site-header {
     position: sticky;
@@ -2101,6 +2144,11 @@ textarea {
     .breakdown-box,
     .checkout-panel {
         padding: 20px;
+    }
+    .legal-document {
+        padding: 28px 20px;
+        border-radius: 14px;
+        margin: 28px auto 72px;
     }
     .checkout-product-row,
     .checkout-price-row {

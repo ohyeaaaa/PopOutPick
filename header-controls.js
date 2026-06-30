@@ -6,7 +6,13 @@
         { label: 'Home', href: 'Home.html', keywords: 'home brand intro' },
         { label: 'Shop', href: 'configurator.html#shop', keywords: 'shop replacement parts products' },
         { label: 'Customize', href: 'configurator.html', keywords: 'customize configurator build colors' },
-        { label: 'Cart', href: 'configurator.html#checkout-box', keywords: 'cart checkout order payment' }
+        { label: 'Cart', href: 'configurator.html#checkout-box', keywords: 'cart checkout order payment' },
+        { label: 'Privacy Policy', href: 'privacy-policy.html', keywords: 'privacy policy personal data uploads checkout' },
+        { label: 'Terms & Conditions', href: 'terms-conditions.html', keywords: 'terms conditions refunds payment custom products' }
+    ];
+    const legalMenuItems = [
+        { label: 'Privacy Policy', href: 'privacy-policy.html' },
+        { label: 'Terms & Conditions', href: 'terms-conditions.html' }
     ];
 
     function injectStyles() {
@@ -121,6 +127,16 @@
             item.className = 'header-menu-link';
             item.href = link.getAttribute('href') || '#';
             item.textContent = link.textContent.trim();
+            item.setAttribute('role', 'menuitem');
+            item.addEventListener('click', () => closePopover(panel, header.querySelector('[aria-controls="' + panel.id + '"]')));
+            panel.appendChild(item);
+        });
+
+        legalMenuItems.forEach((link) => {
+            const item = document.createElement('a');
+            item.className = 'header-menu-link';
+            item.href = link.href;
+            item.textContent = link.label;
             item.setAttribute('role', 'menuitem');
             item.addEventListener('click', () => closePopover(panel, header.querySelector('[aria-controls="' + panel.id + '"]')));
             panel.appendChild(item);

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - PopOutPick</title>
+    <meta name="description" content="PopOutPick Privacy Policy for checkout, custom design uploads, PayNow payment proof, and order fulfilment.">
+    <script src="vendor/supabase-js-2.108.2/supabase.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="public-site legal-page">
+    <header class="site-header">
+        <a href="Home.html" class="header-logo">PopOutPick</a>
+        <nav class="header-nav">
+            <a href="Home.html">Home</a>
+            <a href="configurator.html#shop">Shop</a>
+            <a href="configurator.html">Customize</a>
+            <a href="configurator.html#checkout-box">Cart</a>
+        </nav>
+        <div class="header-icons">
+            <a class="icon-btn" href="https://www.instagram.com/popoutpicks/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            </a>
+            <button class="icon-btn" aria-label="Telegram" type="button">
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+            <button class="icon-btn" onclick="window.location.href='configurator.html#checkout-box';" aria-label="Cart" type="button">
+                <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                <span class="cart-badge" id="site-cart-count">0</span>
+            </button>
+            <button class="icon-btn menu-btn" aria-label="Menu" type="button">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="legal-document">
+        <p class="legal-kicker">Last updated: 30 June 2026</p>
+        <h1>Privacy Policy</h1>
+        <p>PopOutPick respects your privacy. This Privacy Policy explains how we collect, use, store, and share information when you use our website, custom configurator, checkout, and admin-supported order system.</p>
+
+        <h2>Who We Are</h2>
+        <p>PopOutPick sells custom and replacement PopOutPick parts in Singapore. Contact us by email at <a href="mailto:popoutpick@gmail.com">popoutpick@gmail.com</a> or by Telegram at <a href="https://t.me/aroyston" target="_blank" rel="noopener noreferrer">https://t.me/aroyston</a>.</p>
+        <p>For personal data questions, access or correction requests, withdrawal of consent, or privacy complaints, contact our data protection contact at <a href="mailto:popoutpick@gmail.com">popoutpick@gmail.com</a>.</p>
+
+        <h2>Information We Collect</h2>
+        <p>When you browse the website, we may process basic technical information needed to load the site and protect checkout from abuse.</p>
+        <p>When you place an order, we collect the information needed to process it, including your name, email address, phone number, Telegram handle, selected products, custom colours, part sizes, design add-ons, quantities, pricing, promo code, fulfilment method, meetup date/time/location, or delivery address.</p>
+        <p>When you upload files, we collect uploaded custom design images and your PayNow payment confirmation screenshot. Please avoid including unrelated sensitive information in payment screenshots where possible.</p>
+        <p>The website may store cart and configuration details in your browser's local storage so your cart can be restored.</p>
+
+        <h2>How We Use Your Information</h2>
+        <p>We collect, use, and disclose personal data only for purposes that a reasonable person would consider appropriate in the circumstances. We use your information to process and prepare your order, verify PayNow payment, contact you about fulfilment, arrange meetup or delivery, handle support, prevent fraud or abuse, maintain order records, and operate the admin dashboard.</p>
+        <p>We may also use your information to respond to legal, regulatory, payment, accounting, security, or dispute-related matters. We do not sell your personal data.</p>
+
+        <h2>Services We Use</h2>
+        <p>Our static website is hosted through GitHub Pages. Checkout orders, uploaded files, order records, admin settings, promo codes, and fulfilment availability are handled through Supabase. Supabase Auth protects the admin dashboard. Cloudflare Turnstile may be used to verify that checkout submissions are legitimate. Telegram may be used to send order notifications to PopOutPick admin. Resend may be used to send order emails if enabled.</p>
+        <p>We may disclose necessary information to service providers, hosting providers, storage providers, payment or verification providers, notification providers, delivery or fulfilment partners, professional advisers, regulators, or law enforcement where required or appropriate.</p>
+        <p>These services may process data outside Singapore. Where personal data is transferred outside Singapore, we take reasonable steps to ensure that it receives a standard of protection comparable to the protection under Singapore's Personal Data Protection Act 2012.</p>
+
+        <h2>How We Store and Protect Data</h2>
+        <p>Orders are stored in Supabase Postgres. Payment proof and custom design uploads are stored in private per-order Supabase Storage buckets. Public visitors cannot directly read order records or uploaded files. Admin access is restricted through Supabase Auth and an admin allowlist.</p>
+        <p>No online system is completely risk-free, but we use access controls, private storage, file validation, and checkout verification to reduce risk.</p>
+
+        <h2>How Long We Keep Data</h2>
+        <p>We keep order records, payment proof, and uploaded design files for as long as needed to fulfil orders, manage customer support, handle disputes, keep business records, and meet legal or accounting obligations.</p>
+        <p>We usually keep payment proof and uploaded design files for up to 24 months after fulfilment. We may keep order records for up to 6 years where needed for accounting, tax, legal, fraud prevention, or dispute reasons. We may keep information longer if required by law or if a dispute, investigation, or unpaid amount is ongoing.</p>
+
+        <h2>Your Choices</h2>
+        <p>You may contact us to request access to or correction of your personal data, or to withdraw consent for optional uses of your personal data. We may ask for information to verify your identity before acting on a request.</p>
+        <p>Withdrawal of consent may affect our ability to process, prepare, deliver, support, or keep records for your order. We may need to keep some information where required for order fulfilment, payment verification, accounting, legal compliance, fraud prevention, or dispute handling.</p>
+
+        <h2>Accuracy</h2>
+        <p>Please provide accurate and complete checkout, payment, meetup, delivery, and contact details. We are not responsible for fulfilment problems caused by inaccurate information provided by you.</p>
+
+        <h2>Children</h2>
+        <p>PopOutPick is not intended for children to place orders without consent from a parent or guardian.</p>
+
+        <h2>Changes</h2>
+        <p>We may update this Privacy Policy from time to time. The latest version will be posted on this website.</p>
+    </main>
+
+    <script src="site-config.js"></script>
+    <script src="cart-badge.js"></script>
+    <script src="header-controls.js"></script>
+</body>
+</html>

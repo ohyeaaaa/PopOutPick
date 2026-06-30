@@ -9,6 +9,8 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const rootFiles = [
     'Home.html',
     'configurator.html',
+    'privacy-policy.html',
+    'terms-conditions.html',
     'style.css',
     'script.js',
     'site-config.js',
