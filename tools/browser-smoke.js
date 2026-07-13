@@ -573,10 +573,10 @@ async function main() {
                 snapshot.top = '#e25822';
                 snapshot.bottom = '#111111';
                 snapshot.holders = [
-                    { c1: '#ffffff', c2: '#111111', t: '10mm' },
-                    { c1: '#e25822', c2: '#ffffff', t: '8mm' },
-                    { c1: '#111111', c2: '#ffffff', t: '7mm' },
-                    { c1: '#ffffff', c2: '#e25822', t: '6mm' }
+                    { c1: '#ffffff', c2: '#111111', t: '1mm' },
+                    { c1: '#e25822', c2: '#ffffff', t: '0.8mm' },
+                    { c1: '#111111', c2: '#ffffff', t: '0.7mm' },
+                    { c1: '#ffffff', c2: '#e25822', t: '0.6mm' }
                 ];
                 checkoutState.cartItems = [{
                     id: 'smoke-1',
@@ -605,10 +605,10 @@ async function main() {
                 snapshot.top = '#e25822';
                 snapshot.bottom = '#111111';
                 snapshot.holders = [
-                    { c1: '#ffffff', c2: '#111111', t: '10mm' },
-                    { c1: '#e25822', c2: '#ffffff', t: '8mm' },
-                    { c1: '#111111', c2: '#ffffff', t: '7mm' },
-                    { c1: '#ffffff', c2: '#e25822', t: '6mm' }
+                    { c1: '#ffffff', c2: '#111111', t: '1mm' },
+                    { c1: '#e25822', c2: '#ffffff', t: '0.8mm' },
+                    { c1: '#111111', c2: '#ffffff', t: '0.7mm' },
+                    { c1: '#ffffff', c2: '#e25822', t: '0.6mm' }
                 ];
                 checkoutState.cartItems = [{
                     id: 'smoke-1',
@@ -641,10 +641,10 @@ async function main() {
                 selections.top = '#e25822';
                 selections.bottom = '#111111';
                 selections.holders = [
-                    { c1: '#ffffff', c2: '#111111', t: '10mm' },
-                    { c1: '#e25822', c2: '#ffffff', t: '8mm' },
-                    { c1: '#111111', c2: '#ffffff', t: '7mm' },
-                    { c1: '#ffffff', c2: '#e25822', t: '6mm' }
+                    { c1: '#ffffff', c2: '#111111', t: '1mm' },
+                    { c1: '#e25822', c2: '#ffffff', t: '0.8mm' },
+                    { c1: '#111111', c2: '#ffffff', t: '0.7mm' },
+                    { c1: '#ffffff', c2: '#e25822', t: '0.6mm' }
                 ];
                 render();
                 await new Promise(resolve => setTimeout(resolve, 3000));

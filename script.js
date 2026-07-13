@@ -133,10 +133,10 @@ const glbModels = {
         top: "GLB/(Guitar) Top Plate.glb",
         bottom: "GLB/(Guitar) Base Plate.glb",
         holders: {
-            "10mm": "GLB/(Guitar) Pick Holder 10mm.glb",
-            "8mm": "GLB/(Guitar) Pick Holder 8mm.glb",
-            "7mm": "GLB/(Guitar) Pick Holder 7mm.glb",
-            "6mm": "GLB/(Guitar) Pick Holder 6mm.glb"
+            "1mm": "GLB/(Guitar) Pick Holder 10mm.glb",
+            "0.8mm": "GLB/(Guitar) Pick Holder 8mm.glb",
+            "0.7mm": "GLB/(Guitar) Pick Holder 7mm.glb",
+            "0.6mm": "GLB/(Guitar) Pick Holder 6mm.glb"
         }
     },
     bass: {
@@ -147,14 +147,48 @@ const glbModels = {
         top: "GLB/(Bass) Top Plate.glb",
         bottom: "GLB/(Bass) Base Plate.glb",
         holders: {
-            "30mm": "GLB/(Bass) Pick Holder 30mm.glb",
-            "20mm": "GLB/(Bass) Pick Holder 20mm.glb",
-            "10mm": "GLB/(Bass) Pick Holder 10mm.glb",
-            "8mm": "GLB/(Bass) Pick Holder 8mm.glb",
-            "6mm": "GLB/(Bass) Pick Holder 6mm.glb"
+            "3mm": "GLB/(Bass) Pick Holder 30mm.glb",
+            "2mm": "GLB/(Bass) Pick Holder 20mm.glb",
+            "1mm": "GLB/(Bass) Pick Holder 10mm.glb",
+            "0.8mm": "GLB/(Bass) Pick Holder 8mm.glb",
+            "0.6mm": "GLB/(Bass) Pick Holder 6mm.glb"
         }
     }
 };
+
+const legacyHolderThicknesses = Object.freeze({
+    "30mm": "3mm",
+    "20mm": "2mm",
+    "10mm": "1mm",
+    "8mm": "0.8mm",
+    "7mm": "0.7mm",
+    "6mm": "0.6mm"
+});
+
+function normalizeHolderThickness(value) {
+    const rawThickness = String(value || '').trim();
+    if (rawThickness.toLowerCase() === 'empty') return 'Empty';
+    const thickness = rawThickness.toLowerCase();
+    return legacyHolderThicknesses[thickness] || thickness;
+}
+
+function normalizeHolderThicknessText(value) {
+    if (typeof value !== 'string') return value;
+    return value
+        .replace(/(^|[^\d.])30\s*mm\b/gi, (_match, prefix) => `${prefix}3mm`)
+        .replace(/(^|[^\d.])20\s*mm\b/gi, (_match, prefix) => `${prefix}2mm`)
+        .replace(/(^|[^\d.])10\s*mm\b/gi, (_match, prefix) => `${prefix}1mm`)
+        .replace(/(^|[^\d.])8\s*mm\b/gi, (_match, prefix) => `${prefix}0.8mm`)
+        .replace(/(^|[^\d.])7\s*mm\b/gi, (_match, prefix) => `${prefix}0.7mm`)
+        .replace(/(^|[^\d.])6\s*mm\b/gi, (_match, prefix) => `${prefix}0.6mm`);
+}
+
+function normalizeHolderSnapshot(holder = {}) {
+    return {
+        ...holder,
+        t: normalizeHolderThickness(holder?.t)
+    };
+}
 
 let selections = {
     type: 'guitar', 
@@ -195,10 +229,10 @@ let selections = {
         bottom: { x: 0, y: 0, scale: 100 }
     },
     holders: [
-        {c1: '#ffffff', c2: '#ffffff', t: '10mm'}, 
-        {c1: '#ffffff', c2: '#ffffff', t: '8mm'},
-        {c1: '#ffffff', c2: '#ffffff', t: '7mm'}, 
-        {c1: '#ffffff', c2: '#ffffff', t: '6mm'}
+        {c1: '#ffffff', c2: '#ffffff', t: '1mm'},
+        {c1: '#ffffff', c2: '#ffffff', t: '0.8mm'},
+        {c1: '#ffffff', c2: '#ffffff', t: '0.7mm'},
+        {c1: '#ffffff', c2: '#ffffff', t: '0.6mm'}
     ]
 };
 
@@ -338,7 +372,8 @@ function normalizePersistedCartItem(item, index = 0) {
     const normalized = {
         ...item,
         id: item.id || `restored-${Date.now()}-${index}`,
-        quantity: Math.max(1, Number(item.quantity) || 1)
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        description: normalizeHolderThicknessText(item.description)
     };
 
     if (normalized.selections) {
@@ -350,8 +385,12 @@ function normalizePersistedCartItem(item, index = 0) {
             designColors: getDefaultDesignColors(normalized.selections.designColors),
             designAddOns: { ...(normalized.selections.designAddOns || {}) },
             designTransforms: JSON.parse(JSON.stringify(normalized.selections.designTransforms || {})),
-            holders: JSON.parse(JSON.stringify(normalized.selections.holders || []))
+            holders: JSON.parse(JSON.stringify(normalized.selections.holders || [])).map(normalizeHolderSnapshot)
         };
+    }
+
+    if (normalized.holder) {
+        normalized.holder = normalizeHolderSnapshot(normalized.holder);
     }
 
     if ('designFile' in normalized) {
@@ -577,7 +616,7 @@ function loadSlotPart(index) {
     if (index < 0 || index > 3) return;
 
     const activeSet = glbModels[selections.type];
-    const size = selections.holders[index].t;
+    const size = normalizeHolderThickness(selections.holders[index].t);
     if (size === 'Empty') return;
 
     const file = activeSet.holders[size];
@@ -905,7 +944,7 @@ function loadCheckoutPreviewAssembly(activeSet, loadingManager, source = selecti
             const holder = source.holders[placeholder.slotIndex];
             if (!holder || holder.t === 'Empty') return;
 
-            const holderFile = activeSet.holders[holder.t];
+            const holderFile = activeSet.holders[normalizeHolderThickness(holder.t)];
             if (!holderFile) return;
 
             addCheckoutHolderReplacement(
@@ -1015,7 +1054,7 @@ function render() {
             loadPart(activeSet.bottom, getPartMat('bottom'), loadingManager);
 
             for (let i = 0; i < 4; i++) {
-                const size = selections.holders[i].t;
+                const size = normalizeHolderThickness(selections.holders[i].t);
                 if (size !== 'Empty') {
                     const holderFile = activeSet.holders[size];
                     loadPart(holderFile, getMat(selections.holders[i].c1, selections.holders[i].c2, true), loadingManager, i);
@@ -1079,7 +1118,7 @@ function render() {
 
         html += `<div class="label-caps">${escapeHtml(getText('pickholders.thicknessLabel', 'THICKNESS'))}</div>
         <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-bottom:10px;">
-            ${thicknessOptions.map(t => `<button class="thick-btn ${selections.holders[activeSlot].t===t?'selected':''}" onclick="setThick('${t}')">${escapeHtml(t)}</button>`).join('')}
+            ${thicknessOptions.map(t => `<button class="thick-btn ${normalizeHolderThickness(selections.holders[activeSlot].t)===t?'selected':''}" onclick="setThick('${t}')">${escapeHtml(t)}</button>`).join('')}
         </div>`;
         ctrlRight.innerHTML = html;
 
@@ -1102,7 +1141,7 @@ function render() {
         if (rotBtn) rotBtn.classList.toggle('active', isHolderRotating);
         updateRotateButtonLabel('btn-rotate-holder', isHolderRotating);
 
-        const size = selections.holders[activeSlot].t;
+        const size = normalizeHolderThickness(selections.holders[activeSlot].t);
         if (size !== 'Empty') {
             loadPart(activeSet.holders[size], getMat(selections.holders[activeSlot].c1, selections.holders[activeSlot].c2, true));
         }
@@ -1224,12 +1263,12 @@ function shouldShopProductChooseType(product) {
 
 function getHolderThicknessOptions(type = selections.type) {
     return type === 'bass'
-        ? ['30mm', '20mm', '10mm', '8mm', '6mm']
-        : ['10mm', '8mm', '7mm', '6mm'];
+        ? ['3mm', '2mm', '1mm', '0.8mm', '0.6mm']
+        : ['1mm', '0.8mm', '0.7mm', '0.6mm'];
 }
 
 function getDefaultHolderThicknessForType(type = selections.type) {
-    return getHolderThicknessOptions(type)[0] || '10mm';
+    return getHolderThicknessOptions(type)[0] || '1mm';
 }
 
 function renderShopTypeSelector(product = null) {
@@ -1308,7 +1347,7 @@ function buildBreakdown() {
             step: 3,
             swatch: `linear-gradient(90deg, ${holder.c1} 0 50%, ${holder.c2} 50% 100%)`,
             details: [
-                `${escapeHtml(thicknessLabel)}: ${escapeHtml(holder.t)}`,
+                `${escapeHtml(thicknessLabel)}: ${escapeHtml(normalizeHolderThickness(holder.t))}`,
                 renderColorDetail(bodyColorLabel, holder.c1),
                 renderColorDetail(numberColorLabel, holder.c2)
             ]
@@ -1472,7 +1511,7 @@ function getStepPartKey(step = currentStep) {
 
 function getShopHolderThickness(product) {
     return product?.shopPartType !== 'holder' && product?.previewPart?.startsWith('holder:')
-        ? product.previewPart.replace('holder:', '')
+        ? normalizeHolderThickness(product.previewPart.replace('holder:', ''))
         : null;
 }
 
@@ -1512,7 +1551,7 @@ function getShopProductPreviewSpec(product) {
 
     const holderThickness = product.shopPartType === 'holder'
         ? getDefaultHolderThicknessForType(type)
-        : partKey.replace(/^holder:/, '');
+        : normalizeHolderThickness(partKey.replace(/^holder:/, ''));
     if (activeSet.holders?.[holderThickness]) {
         return {
             file: activeSet.holders[holderThickness],
@@ -1627,7 +1666,7 @@ function renderShopProducts() {
 
 function createCartItemFromShopProduct(product) {
     const partKey = getStepPartKey(getShopProductStep(product));
-    const holderSnapshot = isShopHolderProduct(product) ? { ...selections.holders[activeSlot] } : null;
+    const holderSnapshot = isShopHolderProduct(product) ? normalizeHolderSnapshot(selections.holders[activeSlot]) : null;
     const selectedAddOns = partKey ? getSelectedDesignAddOns(selections).filter(addOn => addOn.partKey === partKey) : [];
     const addOnTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.price, 0);
     const details = [];
@@ -1815,7 +1854,7 @@ function getConfiguredProductDescription(source = selections) {
     const addOnText = addOns.length
         ? ` · ${addOns.map(getDesignAddOnSummary).join(', ')}`
         : '';
-    return `${getCheckoutText('productDescription', 'Configured set with 4 pickholders')} · ${source.holders.map(h => h.t).join(', ')}${addOnText}`;
+    return `${getCheckoutText('productDescription', 'Configured set with 4 pickholders')} · ${source.holders.map(h => normalizeHolderThickness(h.t)).join(', ')}${addOnText}`;
 }
 
 function getCheckoutProductName() {
@@ -2094,7 +2133,7 @@ function mountCheckoutPreview(item, containerTarget) {
         addPreviewPart(activeSet.bottom, getSnapshotPartMat(snapshot, 'bottom'));
         snapshot.holders.forEach((holder, index) => {
             if (holder.t !== 'Empty') {
-                addPreviewPart(activeSet.holders[holder.t], getMat(holder.c1, holder.c2, true), index);
+                addPreviewPart(activeSet.holders[normalizeHolderThickness(holder.t)], getMat(holder.c1, holder.c2, true), index);
             }
         });
     }
@@ -2898,7 +2937,7 @@ function cloneSelectionsForOrder(source) {
         designColors: getDefaultDesignColors(source.designColors),
         designAddOns: { ...source.designAddOns },
         designTransforms: JSON.parse(JSON.stringify(source.designTransforms || {})),
-        holders: JSON.parse(JSON.stringify(source.holders || []))
+        holders: JSON.parse(JSON.stringify(source.holders || [])).map(normalizeHolderSnapshot)
     };
 }
 
@@ -3327,10 +3366,11 @@ function updateRotateButtonLabel(buttonId, rotating) {
 
 function normalizeHolderThicknessesForType(type) {
     const allowed = type === 'bass'
-        ? ['30mm', '20mm', '10mm', '8mm', '6mm']
-        : ['10mm', '8mm', '7mm', '6mm'];
+        ? ['3mm', '2mm', '1mm', '0.8mm', '0.6mm']
+        : ['1mm', '0.8mm', '0.7mm', '0.6mm'];
 
     selections.holders.forEach((holder) => {
+        holder.t = normalizeHolderThickness(holder.t);
         if (!allowed.includes(holder.t)) {
             holder.t = allowed[0];
         }
@@ -3510,7 +3550,7 @@ function startDesignDrag(event, key) {
 function goToStep(n) { setCartActionStatus(); renderFinalReviewCartPrompt(false); activeView = 'customizer'; currentStep = n; render(); }
 function changeStep(d) { setCartActionStatus(); renderFinalReviewCartPrompt(false); activeView = 'customizer'; currentStep += d; if (currentStep < 1) currentStep = 1; if (currentStep > 8) currentStep = 8; render(); }
 function selectSlot(i) { activeSlot = i; render(); }
-function setThick(t) { selections.holders[activeSlot].t = t; render(); }
+function setThick(t) { selections.holders[activeSlot].t = normalizeHolderThickness(t); render(); }
 
 function handleConfiguratorHashRoute() {
     if (window.location.hash === '#shop') {

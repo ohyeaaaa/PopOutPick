@@ -88,7 +88,7 @@ window.POPOUTPICK_CONFIG = {
                 name: "Pick Holder",
                 description: "Replacement pick holder. Choose type, size and colours after clicking.",
                 price: 0.5,
-                previewPart: "holder:10mm",
+                previewPart: "holder:1mm",
                 shopPartType: "holder",
                 previewZoom: 1.55,
                 icon: "",
@@ -132,10 +132,10 @@ window.POPOUTPICK_CONFIG = {
             title: "Choose Your Pick Type",
             subtitle: "Are you a guitar player or a bass player?",
             guitarTitle: "Guitar",
-            guitarRange: "10MM - 6MM",
+            guitarRange: "1mm - 0.6mm",
             guitarAlt: "Guitar Icon",
             bassTitle: "Bass",
-            bassRange: "30MM - 6MM",
+            bassRange: "3mm - 0.6mm",
             bassAlt: "Bass Icon"
         },
 

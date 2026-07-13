@@ -1246,6 +1246,30 @@ function cleanText(value, maxLength = 240) {
     return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
 }
 
+const LEGACY_HOLDER_THICKNESSES = Object.freeze({
+    '30mm': '3mm',
+    '20mm': '2mm',
+    '10mm': '1mm',
+    '8mm': '0.8mm',
+    '7mm': '0.7mm',
+    '6mm': '0.6mm'
+});
+
+function canonicalHolderThickness(value) {
+    const thickness = cleanText(value, 20).toLowerCase();
+    return LEGACY_HOLDER_THICKNESSES[thickness] || thickness;
+}
+
+function normalizeHolderThicknessText(value) {
+    return cleanText(value, 1000)
+        .replace(/(^|[^\d.])30\s*mm\b/gi, (_match, prefix) => `${prefix}3mm`)
+        .replace(/(^|[^\d.])20\s*mm\b/gi, (_match, prefix) => `${prefix}2mm`)
+        .replace(/(^|[^\d.])10\s*mm\b/gi, (_match, prefix) => `${prefix}1mm`)
+        .replace(/(^|[^\d.])8\s*mm\b/gi, (_match, prefix) => `${prefix}0.8mm`)
+        .replace(/(^|[^\d.])7\s*mm\b/gi, (_match, prefix) => `${prefix}0.7mm`)
+        .replace(/(^|[^\d.])6\s*mm\b/gi, (_match, prefix) => `${prefix}0.6mm`);
+}
+
 function cleanOptionalText(value, maxLength = 240) {
     const cleaned = cleanText(value, maxLength);
     return cleaned || null;
@@ -1390,8 +1414,8 @@ function canonicalizeSelections(value) {
     assertCheckout(type === 'guitar' || type === 'bass', 'Invalid configured product type.');
 
     const allowedThicknesses = {
-        guitar: new Set(['10mm', '8mm', '7mm', '6mm']),
-        bass: new Set(['30mm', '20mm', '10mm', '8mm', '6mm'])
+        guitar: new Set(['1mm', '0.8mm', '0.7mm', '0.6mm']),
+        bass: new Set(['3mm', '2mm', '1mm', '0.8mm', '0.6mm'])
     };
     const holders = Array.isArray(source.holders) ? source.holders : [];
     assertCheckout(holders.length === 4, 'Configured products must include four pickholders.');
@@ -1417,7 +1441,7 @@ function canonicalizeSelections(value) {
         designAddOns,
         designTransforms: canonicalizeDesignTransforms(source.designTransforms),
         holders: holders.map(holder => {
-            const thickness = cleanText(asPlainObject(holder)?.t, 20);
+            const thickness = canonicalHolderThickness(asPlainObject(holder)?.t);
             assertCheckout(allowedThicknesses[type].has(thickness), `Invalid ${type} pickholder thickness.`);
             return {
                 c1: cleanColor(holder.c1),
@@ -1459,7 +1483,7 @@ function canonicalizeCheckoutItem(value, index) {
             type: 'shop-product',
             productId: product.id,
             name: cleanText(product.name || item.name || 'Shop product', 180),
-            description: cleanText(item.description || product.description || '', 1000),
+            description: normalizeHolderThicknessText(item.description || product.description || ''),
             quantity,
             unitPrice,
             lineTotal: roundMoney(unitPrice * quantity),
@@ -1481,7 +1505,7 @@ function canonicalizeCheckoutItem(value, index) {
         type: 'configured-design',
         productId: null,
         name: cleanText(item.name || `Custom ${productType} PopOutPick`, 180),
-        description: cleanText(item.description || `Configured set with 4 pickholders`, 1000),
+        description: normalizeHolderThicknessText(item.description || `Configured set with 4 pickholders`),
         quantity,
         unitPrice,
         lineTotal: roundMoney(unitPrice * quantity),

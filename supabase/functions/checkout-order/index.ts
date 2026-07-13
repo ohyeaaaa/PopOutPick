@@ -28,7 +28,7 @@ const COMMERCE_CONFIG = {
         { id: 'slider', name: 'Slider', description: 'Replacement slider for both Guitar and Bass PopOutPick sets', price: 1, previewPart: 'slider', previewZoom: 1.5, icon: '', symbol: '\u2194' },
         { id: 'top-plate', name: 'Top Plate', description: 'Replacement top plate', price: 1, previewPart: 'top', previewRotation: [1.35, 0, 0], previewZoom: 1.35, icon: '', symbol: '\u25b2' },
         { id: 'base-plate', name: 'Base Plate', description: 'Replacement base plate', price: 1, previewPart: 'bottom', previewRotation: [1.35, 0, 0], previewZoom: 1.35, icon: '', symbol: '\u25bc' },
-        { id: 'guitar-pick-holder', name: 'Pick Holder', description: 'Replacement pick holder. Choose type, size and colours after clicking.', price: 0.5, previewPart: 'holder:10mm', shopPartType: 'holder', previewZoom: 1.55, icon: '', symbol: '#' }
+        { id: 'guitar-pick-holder', name: 'Pick Holder', description: 'Replacement pick holder. Choose type, size and colours after clicking.', price: 0.5, previewPart: 'holder:1mm', shopPartType: 'holder', previewZoom: 1.55, icon: '', symbol: '#' }
     ],
     designAddOns: {
         slider: { label: 'Add a 2D design for $2', price: 2, type: '2D' },
@@ -272,6 +272,30 @@ function cleanText(value: unknown, maxLength = 240) {
     return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
 }
 
+const LEGACY_HOLDER_THICKNESSES: Record<string, string> = Object.freeze({
+    '30mm': '3mm',
+    '20mm': '2mm',
+    '10mm': '1mm',
+    '8mm': '0.8mm',
+    '7mm': '0.7mm',
+    '6mm': '0.6mm'
+});
+
+function canonicalHolderThickness(value: unknown) {
+    const thickness = cleanText(value, 20).toLowerCase();
+    return LEGACY_HOLDER_THICKNESSES[thickness] || thickness;
+}
+
+function normalizeHolderThicknessText(value: unknown) {
+    return cleanText(value, 1000)
+        .replace(/(^|[^\d.])30\s*mm\b/gi, (_match, prefix) => `${prefix}3mm`)
+        .replace(/(^|[^\d.])20\s*mm\b/gi, (_match, prefix) => `${prefix}2mm`)
+        .replace(/(^|[^\d.])10\s*mm\b/gi, (_match, prefix) => `${prefix}1mm`)
+        .replace(/(^|[^\d.])8\s*mm\b/gi, (_match, prefix) => `${prefix}0.8mm`)
+        .replace(/(^|[^\d.])7\s*mm\b/gi, (_match, prefix) => `${prefix}0.7mm`)
+        .replace(/(^|[^\d.])6\s*mm\b/gi, (_match, prefix) => `${prefix}0.6mm`);
+}
+
 function cleanOptionalText(value: unknown, maxLength = 240) {
     const cleaned = cleanText(value, maxLength);
     return cleaned || null;
@@ -412,8 +436,8 @@ function canonicalizeSelections(value: unknown) {
     assertCheckout(type === 'guitar' || type === 'bass', 'Invalid configured product type.');
 
     const allowedThicknesses = {
-        guitar: new Set(['10mm', '8mm', '7mm', '6mm']),
-        bass: new Set(['30mm', '20mm', '10mm', '8mm', '6mm'])
+        guitar: new Set(['1mm', '0.8mm', '0.7mm', '0.6mm']),
+        bass: new Set(['3mm', '2mm', '1mm', '0.8mm', '0.6mm'])
     };
     const holders = Array.isArray(source.holders) ? source.holders : [];
     assertCheckout(holders.length === 4, 'Configured products must include four pickholders.');
@@ -440,7 +464,7 @@ function canonicalizeSelections(value: unknown) {
         designTransforms: canonicalizeDesignTransforms(source.designTransforms),
         holders: holders.map(holder => {
             const item = asPlainObject(holder) || {};
-            const thickness = cleanText(item.t, 20);
+            const thickness = canonicalHolderThickness(item.t);
             assertCheckout((allowedThicknesses as Record<string, Set<string>>)[type].has(thickness), `Invalid ${type} pickholder thickness.`);
             return {
                 c1: cleanColor(item.c1),
@@ -482,7 +506,7 @@ function canonicalizeCheckoutItem(value: unknown, index: number) {
             type: 'shop-product',
             productId: product.id,
             name: cleanText(product.name || item.name || 'Shop product', 180),
-            description: cleanText(item.description || product.description || '', 1000),
+            description: normalizeHolderThicknessText(item.description || product.description || ''),
             quantity,
             unitPrice,
             lineTotal: roundMoney(unitPrice * quantity),
@@ -505,7 +529,7 @@ function canonicalizeCheckoutItem(value: unknown, index: number) {
         type: 'configured-design',
         productId: null,
         name: cleanText(item.name || `Custom ${productType} PopOutPick`, 180),
-        description: cleanText(item.description || 'Configured set with 4 pickholders', 1000),
+        description: normalizeHolderThicknessText(item.description || 'Configured set with 4 pickholders'),
         quantity,
         unitPrice,
         lineTotal: roundMoney(unitPrice * quantity),

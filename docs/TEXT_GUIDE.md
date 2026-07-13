@@ -42,9 +42,9 @@ These are important for the configurator experience.
 | Text | Where to change | Size/style controlled by |
 |---|---|---|
 | `Guitar` | `index.html` | Add/change `.type-card h3` in `style.css` |
-| `10MM - 6MM` | `index.html` | Add/change `.type-card p` in `style.css` |
+| `1mm - 0.6mm` | `index.html` | Add/change `.type-card p` in `style.css` |
 | `Bass` | `index.html` | Add/change `.type-card h3` in `style.css` |
-| `30MM - 6MM` | `index.html` | Add/change `.type-card p` in `style.css` |
+| `3mm - 0.6mm` | `index.html` | Add/change `.type-card p` in `style.css` |
 
 Recommended CSS:
 
@@ -101,14 +101,14 @@ These are generated in `script.js`:
 
 ```js
 const thicknessOptions = selections.type === 'bass'
-    ? ['30mm', '20mm', '10mm', '8mm', '6mm']
-    : ['10mm', '8mm', '7mm', '6mm'];
+    ? ['3mm', '2mm', '1mm', '0.8mm', '0.6mm']
+    : ['1mm', '0.8mm', '0.7mm', '0.6mm'];
 ```
 
 | Product type | Current choices |
 |---|---|
-| Guitar | `10mm`, `8mm`, `7mm`, `6mm` |
-| Bass | `30mm`, `20mm`, `10mm`, `8mm`, `6mm` |
+| Guitar | `1mm`, `0.8mm`, `0.7mm`, `0.6mm` |
+| Bass | `3mm`, `2mm`, `1mm`, `0.8mm`, `0.6mm` |
 
 Important: if you add a new size choice, you also need a matching GLB file path in `glbModels` in `script.js`.
 
